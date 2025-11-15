@@ -3,905 +3,461 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>T.R.R.A.M. Advisor Bot</title>
+    <title>TRRAM Academic Schedule Planner</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <!-- Custom Tailwind Configuration for CRT Theme -->
     <script>
         tailwind.config = {
-            darkMode: 'class', // Enable dark mode based on 'dark' class
             theme: {
                 extend: {
-                    fontFamily: {
-                        mono: ['"Courier New"', 'monospace'],
-                    },
                     colors: {
-                        'crt-green': '#00ff00',
-                        'crt-dark': '#001a00',
-                        'crt-yellow': '#ffcc00',
-                        'crt-red': '#ff0000',
-                    }
-                }
-            }
+                        'crt-dark': '#0A0A0A',
+                        'crt-green-bright': '#66FF66',
+                        'crt-green-medium': '#00B300',
+                        'crt-yellow-bright': '#FFFF66',
+                    },
+                },
+            },
         }
     </script>
     <style>
-        body { font-family: 'Courier New', monospace; }
-        .crt {
-            /* Basic CRT scanline effect */
-            background: repeating-linear-gradient(
-                to bottom,
-                transparent 0,
-                transparent 1px,
-                rgba(0, 0, 0, 0.1) 1px,
-                rgba(0, 0, 0, 0.2) 2px
-            );
-            /* Subtle flicker/blur effect for the text */
-            text-shadow: 
-                0 0 1px currentColor, 
-                0 0 2px currentColor;
+        /* Base styles using Inter font */
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.5s, color 0.5s;
         }
-        .crt.dark {
-            background-color: #001a00; /* crt-dark */
+        /* Specific CRT terminal font style */
+        .font-mono-crt {
+            font-family: monospace;
         }
-        .crt.light {
-            background-color: #f0f0f0; /* Off-white for light mode contrast */
+        /* Style for the terminal-like container */
+        .crt-container {
+            box-shadow: 0 0 30px #66FF66, inset 0 0 15px #66FF66;
+            transition: border-color 0.5s, box-shadow 0.5s, background-color 0.5s;
         }
-        /* Custom scrollbar to match terminal aesthetic */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-thumb { background-color: #00ff00; border-radius: 4px; }
-        ::-webkit-scrollbar-track { background-color: transparent; }
+        /* Style for interactive elements in dark mode */
+        .dark .interactive-button {
+             box-shadow: 2px 2px 0 #66FF66;
+        }
+        .dark .interactive-button:hover {
+             box-shadow: 3px 3px 0 #66FF66;
+        }
     </style>
 </head>
-<body class="min-h-screen p-4 transition-colors duration-500" id="body-wrapper">
+
+<body class="bg-gray-100 text-gray-900 min-h-screen p-4 sm:p-8 flex justify-center">
+
+    <div id="app-container" class="w-full max-w-6xl p-4 sm:p-6 md:p-8 relative z-10 
+        border-4 shadow-xl rounded-lg overflow-hidden transition-colors duration-500
+        border-gray-900 bg-white font-mono-crt">
+
+        <!-- Header -->
+        <header class="mb-6 border-b-4 pb-3 flex justify-between items-start border-gray-900">
+            <div>
+                <h1 class="text-2xl sm:text-3xl font-bold uppercase flex items-center text-gray-900">
+                    <!-- Terminal Icon -->
+                    <svg class="w-6 h-6 mr-2 mb-1 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 18s-4 0-4-4 4-8 4-8 4 4 4 8-4 4-4 4zM12 2v2M4.22 8.22l1.42 1.42M19.78 8.22l-1.42 1.42M2 12h2M20 12h-2M6.41 17.59l1.42-1.42M17.59 17.59l-1.42-1.42"/></svg>
+                    T.R.R.A.M.
+                </h1>
+                <p id="user-id-display" class="text-sm ml-8 italic text-indigo-600">
+                    Academic Plan Generator (User ID: Loading...)
+                </p>
+            </div>
+            
+            <!-- Theme Toggle Button -->
+            <button id="theme-toggle" class="p-2 border-2 text-sm transition-colors rounded-none border-gray-900 bg-gray-300 text-gray-900 hover:bg-gray-400" title="Toggle Theme">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"></path></svg>
+            </button>
+        </header>
+
+        <div class="text-sm sm:text-base">
+            
+            <!-- Input/Configuration Section -->
+            <div class="w-full mb-8 p-3 border-2 border-dashed border-gray-700">
+                <label class="block mb-2 text-sm uppercase font-bold text-indigo-600">
+                    T.R.R.A.M. PLAN CONFIGURATION
+                </label>
+                <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+                    
+                    <!-- Start Term Selector -->
+                    <div class="flex-1">
+                        <label for="start-term" class="block mb-1 text-xs uppercase font-semibold">Start Term:</label>
+                        <select id="start-term" class="w-full p-2 border-2 focus:ring-0 focus:outline-none rounded-none font-mono-crt bg-white border-gray-900 text-gray-900">
+                            <!-- Options will be populated by JS -->
+                        </select>
+                    </div>
+
+                    <!-- Arch Away Selector -->
+                    <div class="flex-1">
+                        <label for="arch-away" class="block mb-1 text-xs uppercase font-semibold">Academic Slot to Replace with Arch Away:</label>
+                        <select id="arch-away" class="w-full p-2 border-2 focus:ring-0 focus:outline-none rounded-none font-mono-crt bg-white border-gray-900 text-gray-900">
+                            <!-- Options will be populated by JS -->
+                        </select>
+                    </div>
+
+                    <button id="recalculate-button" class="px-3 py-2 border-2 font-bold uppercase transition duration-150 rounded-none mt-auto h-full border-gray-900 bg-indigo-500 text-white shadow-[2px_2px_0_#333] hover:bg-indigo-600 hover:shadow-[3px_3px_0_#333]">
+                        <span class="text-xs sm:text-sm">RECALCULATE PLAN</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Status/Info Panel -->
+            <div id="status-panel" class="w-full p-3 mb-6 border-2 rounded-none border-green-600 bg-green-100">
+                <!-- Content populated by JS -->
+            </div>
+
+            <!-- Schedule Display Grid -->
+            <h2 class="text-xl uppercase font-bold mb-4 border-b pb-1 border-gray-700">
+                ACADEMIC CHRONOLOGY (<span id="start-term-display">Fall 2024</span> Start)
+            </h2>
+            
+            <div id="schedule-grid" class="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+                <!-- Schedule Cards rendered here by JS -->
+            </div>
+
+        </div>
+    </div>
+
     <script type="module">
-        // Import necessary Firebase and Gemini modules (using dynamic imports to prevent execution until loaded)
-        window.firebaseModules = {
-            firestore: await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'),
-            auth: await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js'),
-            app: await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js')
-        };
-        window.geminiModules = {
-            ai: await import('https://cdn.jsdelivr.net/npm/@google/genai@0.1.0/dist/gemini-2.1.0.js')
-        };
-        document.dispatchEvent(new Event('sdkLoadComplete'));
-    </script>
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+        // --- Firebase Imports (Required for Auth/User ID) ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // Set Firebase log level for debugging
+        setLogLevel('error');
 
-    <div id="root"></div>
-
-    <script type="text/babel">
-        const { useState, useEffect, useCallback, useMemo } = React;
-        const { getAuth, signInAnonymously, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, setPersistence, browserSessionPersistence } = firebaseModules.auth;
-        const { initializeApp } = firebaseModules.app;
-        const { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, deleteDoc } = firebaseModules.firestore;
-        const { GoogleGenerativeAI } = geminiModules.ai;
-
-        // ====================================================================
-        // 1. CONFIGURATION & MOCK DATA
-        // ====================================================================
-
-        // NOTE: REPLACE THESE WITH YOUR ACTUAL CONFIGURATION. 
-        // DO NOT EXPOSE YOUR GEMINI_API_KEY DIRECTLY IN PRODUCTION CLIENT-SIDE CODE!
-        // The current implementation is ONLY for a single-file demo.
-        const firebaseConfig = {
-            apiKey: "AIzaSyDlzdaDxUx21cTSKEkN1C5v_W6giZOKFDo",
-            authDomain: "trram-1e002.firebaseapp.com",
-            projectId: "trram-1e002",
-            storageBucket: "trram-1e002.firebasestorage.app",
-            messagingSenderId: "986737691566",
-            appId: "1:986737691566:web:b7e83b547417236393d63f",
-            measurementId: "G-KNSLC2X4NS"
+        // --- GLOBAL CONSTANTS ---
+        const CREDIT_PER_COURSE = 4;
+        
+        const ALL_ACADEMIC_SEMESTERS = [
+            { id: 'F1', academicYear: 1, term: 'Fall', courses: [{ code: 'CSCI 1100', name: 'Comp. Sci. I' }, { code: 'MATH 1010', name: 'Calculus I' }, { code: 'PHYS 1000', name: 'Physics I' }, { code: 'HASS XXXX', name: 'HASS Inquiry' }] },
+            { id: 'S1', academicYear: 1, term: 'Spring', courses: [{ code: 'CSCI 1200', name: 'Data Struct.' }, { code: 'MATH 1020', name: 'Calculus II' }, { code: 'CSCI 2200', name: 'Found. CS' }, { code: 'HASS XXXX', name: 'Comm. Intensive' }] },
+            { id: 'F2', academicYear: 2, term: 'Fall', courses: [{ code: 'CSCI 2500', name: 'Comp. Org.' }, { code: 'CSCI 4020', name: 'Algorithms' }, { code: 'MATH 2400', name: 'Diff. Eq.' }, { code: 'Free Elective', name: 'Elective I' }] },
+            { id: 'S2', academicYear: 2, term: 'Spring', courses: [{ code: 'CSCI 4210', name: 'Operating Systems' }, { code: 'MATH 4800', name: 'Prob/Stats' }, { code: 'Minor XXXX', name: 'Minor/Pathway I' }, { code: 'HASS XXXX', name: 'HASS Slot' }] },
+            { id: 'F3', academicYear: 3, term: 'Fall', courses: [{ code: 'CSCI 4050', name: 'Theory of Comp.' }, { code: 'CSCI 4440', name: 'Software Eng.' }, { code: 'HASS 4000', name: '4000-Level HASS' }, { code: 'CSCI XXXX', name: 'CS Elective' }] },
+            { id: 'S3', academicYear: 3, term: 'Spring', courses: [{ code: 'CSCI 4050', name: 'Theory of Comp.' }, { code: 'CSCI 4440', name: 'Software Eng.' }, { code: 'HASS 4000', name: '4000-Level HASS' }, { code: 'CSCI XXXX', name: 'CS Elective' }] },
+            { id: 'F4', academicYear: 4, term: 'Fall', courses: [{ code: 'CSCI 4980', name: 'Capstone I' }, { code: 'CSCI XXXX', name: 'Adv. CS Elective' }, { code: 'Free Elective', name: 'Elective III' }, { code: 'Minor XXXX', name: 'Minor/Pathway II' }] },
+            { id: 'S4', academicYear: 4, term: 'Spring', courses: [{ code: 'CSCI 4990', name: 'Capstone II' }, { code: 'CSCI XXXX', name: 'Adv. CS Elective' }, { code: 'Free Elective', name: 'Elective IV' }, { code: 'Minor XXXX', name: 'Minor/Pathway III' }] },
+        ];
+        
+        const ARCH_EXPERIENCE = {
+            id: 'Arch',
+            term: 'Arch Experience',
+            courses: [{ code: 'Experiential', name: 'Arch Away Semester' }],
+            credits: 0,
+            type: 'away',
+            academicYear: null,
         };
         
-        // **SECURITY WARNING**: Using an API key directly in the client is INSECURE.
-        // In a real application, this should be handled by a secure backend 
-        // (like a Firebase Cloud Function) that proxies the request.
-        const GEMINI_API_KEY = "AIzaSyDjz6jIPuQ--hk1XGy4bHFLNK7kc_7whI0"; 
+        const ARCH_SEMESTER_OPTIONS = [
+            { value: 'F3', label: 'F3 - Junior Fall' },
+            { value: 'S3', label: 'S3 - Junior Spring' },
+            { value: 'F4', label: 'F4 - Senior Fall' },
+        ];
+        
+        const START_TERM_OPTIONS = [
+            { value: 'Fall 2024', label: 'Fall 2024' },
+            { value: 'Spring 2025', label: 'Spring 2025' },
+            { value: 'Fall 2025', label: 'Fall 2025' },
+        ];
 
-        const INITIAL_PROMPT = `You are T.R.R.A.M. (Terminal-Retro-Robot-Academic-Manager), a snarky, yet highly intelligent, academic advisor bot. Your task is to generate a detailed 4-year course plan for a student based on a specified major and any custom requirements (e.g., specific courses, credit constraints).
-        
-        **Instructions for output:**
-        1. **Do not include any conversational text, preamble, or markdown formatting outside of the JSON block.** The entire response must be a single, valid JSON object that adheres strictly to the CoursePlan interface provided below.
-        2. **Generate exactly 8 semesters (Fall/Spring pairs) and exactly 4 Summer terms.**
-        3. **Each course must have a unique, realistic four-letter department code (e.g., CS, MATH, ENGL, PHIL) and a three-digit number (e.g., 101, 345, 499).**
-        4. **All credits must be integers (1-5).**
-        5. **The total number of credits must be between 120 and 130.**
-        
-        **CoursePlan Interface:**
-        interface Course {
-            id: string; // Unique ID (e.g., "CS101-FALL1")
-            code: string; // Course code (e.g., "CS 101")
-            name: string; // Course name (e.g., "Intro to Programming")
-            credits: number; // Credit hours (e.g., 3)
-            isComplete: boolean; // Must always be false for a new plan
-        }
-        
-        interface Semester {
-            id: string; // Unique ID (e.g., "FALL1")
-            name: string; // Semester name (e.g., "Fall Year 1")
-            isSummer: boolean; // True if a summer session, false otherwise
-            courses: Course[]; // List of courses
-        }
-        
-        interface CoursePlan {
-            major: string; // The user-specified major
-            description: string; // A brief, snarky summary of the plan you generated.
-            semesters: Semester[];
-        }
-        
-        **User Request:** Generate a course plan for a major in [USER_MAJOR_INPUT] with the following special notes: [USER_NOTES_INPUT].
-        
-        Start the JSON response immediately.`;
-        
-        // ====================================================================
-        // 2. REUSABLE COMPONENTS
-        // ====================================================================
+        // --- FIREBASE SETUP ---
+        let auth, db, userId;
 
-        // Icon Components (using simple SVG for retro style)
-        const UserIcon = (props) => (
-            <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-user"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        );
-        const BotIcon = (props) => (
-            <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-cpu"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2M15 20v2M2 15h2M20 15h2M2 9h2M20 9h2M9 2v2M9 20v2"/></svg>
-        );
-        const SendIcon = (props) => (
-            <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-send"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-        );
-        const LogInIcon = (props) => (
-            <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-log-in"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-        );
-        const LogOutIcon = (props) => (
-            <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-log-out"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        );
-        const CheckIcon = (props) => (
-            <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-check"><polyline points="20 6 9 17 4 12"/></svg>
-        );
-        const SunIcon = (props) => (
-            <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-sun"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-        );
-        const MoonIcon = (props) => (
-            <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-moon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-        );
-        const SaveIcon = (props) => (
-            <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-save"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-        );
+        const setupFirebase = async () => {
+            try {
+                const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
 
-        // Custom Hook for Dark Mode
-        const useDarkMode = () => {
-            const [isDarkMode, setIsDarkMode] = useState(() => {
-                // Initialize from localStorage or default to true
-                if (typeof window !== 'undefined') {
-                    const savedMode = localStorage.getItem('isDarkMode');
-                    return savedMode !== null ? JSON.parse(savedMode) : true;
+                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
                 }
-                return true;
+
+                onAuthStateChanged(auth, (user) => {
+                    userId = user ? user.uid : crypto.randomUUID();
+                    document.getElementById('user-id-display').textContent = `Academic Plan Generator (User ID: ${userId.substring(0, 8)}...)`;
+                    // Rerender plan after auth confirms user ID
+                    renderSchedule();
+                });
+            } catch (error) {
+                console.error("Firebase setup failed, continuing anonymously:", error);
+                userId = crypto.randomUUID();
+                document.getElementById('user-id-display').textContent = `Academic Plan Generator (User ID: ${userId.substring(0, 8)}...)`;
+                renderSchedule();
+            }
+        };
+
+        // --- SCHEDULING LOGIC (The core fix) ---
+
+        /**
+         * Generates the full 9-slot chronological schedule using strict year advancement.
+         */
+        const generateChronology = (startTerm, archAwayId) => {
+            const [startSemester, startYearStr] = startTerm.split(' ');
+            let currentYear = parseInt(startYearStr, 10);
+            let currentTerm = startSemester;
+
+            // 1. Identify RPI semesters and the one being displaced
+            const archAwayIndex = ALL_ACADEMIC_SEMESTERS.findIndex(s => s.id === archAwayId);
+            
+            const displacedSemester = ALL_ACADEMIC_SEMESTERS[archAwayIndex];
+            const rpiSlotsToUse = ALL_ACADEMIC_SEMESTERS.filter(s => s.id !== archAwayId);
+            
+            let finalChronology = [];
+            let rpiSlotCounter = 0;
+
+            // 2. Generate 9 chronological slots and assign content
+            for (let i = 0; i < 9; i++) {
+                
+                // --- CHRONOLOGICAL MAPPING ---
+                const chronologicalName = `${currentTerm} ${currentYear}`;
+
+                let slotContent;
+                let isArchAway = false;
+                
+                // Check if this chronological index is the ARCH slot
+                if (i === archAwayIndex) {
+                    slotContent = ARCH_EXPERIENCE;
+                    isArchAway = true;
+                } 
+                // Check if this is the 9th chronological slot (5th year)
+                else if (i === 8) {
+                    slotContent = displacedSemester;
+                } 
+                // Otherwise, use the next available RPI content slot
+                else {
+                    slotContent = rpiSlotsToUse[rpiSlotCounter];
+                    rpiSlotCounter++;
+                }
+
+                // Calculate credits and determine display year
+                const displayCourses = slotContent.courses;
+                const credits = isArchAway ? 0 : displayCourses.length * CREDIT_PER_COURSE;
+                
+                let displayYear;
+                if (isArchAway) {
+                    displayYear = 'Arch';
+                } else if (i === 8) {
+                    displayYear = '5th Year';
+                } else {
+                    displayYear = `Y${slotContent.academicYear}`;
+                }
+
+
+                finalChronology.push({
+                    ...slotContent,
+                    chronologicalName,
+                    calendarYear: currentYear,
+                    semester: currentTerm,
+                    credits,
+                    isArchAway,
+                    displayYear
+                });
+
+                // 3. ADVANCE CALENDAR FOR NEXT SLOT (i+1)
+                // Fall advances to Spring of the next calendar year
+                if (currentTerm === 'Fall') {
+                    currentTerm = 'Spring';
+                    currentYear += 1;
+                } 
+                // Spring advances to Fall of the same calendar year
+                else { // 'Spring'
+                    currentTerm = 'Fall';
+                    // currentYear remains the same
+                }
+            }
+
+            return finalChronology;
+        };
+
+        // --- RENDERING FUNCTIONS ---
+
+        const applyTheme = (isDark) => {
+            const container = document.getElementById('app-container');
+            const toggleButton = document.getElementById('theme-toggle');
+            const header = container.querySelector('header');
+            const selects = container.querySelectorAll('select');
+            const button = document.getElementById('recalculate-button');
+            const statusPanel = document.getElementById('status-panel');
+            const headerH1 = header.querySelector('h1');
+            const headerIcon = header.querySelector('svg');
+            const configLabel = container.querySelector('.uppercase.font-bold');
+
+            document.body.className = `min-h-screen p-4 sm:p-8 flex justify-center ${isDark ? 'bg-crt-dark text-crt-green-bright' : 'bg-gray-100 text-gray-900'}`;
+            container.classList.toggle('crt-container', isDark);
+
+            if (isDark) {
+                container.classList.replace('border-gray-900', 'border-crt-green-bright');
+                container.classList.replace('bg-white', 'bg-crt-dark');
+                header.classList.replace('border-gray-900', 'border-crt-yellow-bright');
+                headerH1.classList.replace('text-gray-900', 'text-crt-green-bright');
+                headerIcon.classList.replace('text-indigo-600', 'text-crt-yellow-bright');
+                configLabel.classList.replace('text-indigo-600', 'text-crt-yellow-bright');
+                
+                toggleButton.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>';
+                toggleButton.className = 'p-2 border-2 text-sm transition-colors rounded-none border-crt-green-bright bg-crt-green-medium text-crt-dark interactive-button hover:bg-[#00DD00]';
+
+                button.className = 'px-3 py-2 border-2 font-bold uppercase transition duration-150 rounded-none mt-auto h-full border-crt-green-bright bg-crt-green-medium text-crt-dark interactive-button hover:bg-[#00DD00]';
+
+                statusPanel.className = 'w-full p-3 mb-6 border-2 rounded-none border-crt-green-bright bg-crt-green-medium text-crt-dark';
+
+                selects.forEach(s => s.className = 'w-full p-2 border-2 focus:ring-0 focus:outline-none rounded-none font-mono-crt bg-crt-dark border-crt-green-bright text-crt-green-bright');
+            } else {
+                container.classList.replace('border-crt-green-bright', 'border-gray-900');
+                container.classList.replace('bg-crt-dark', 'bg-white');
+                header.classList.replace('border-crt-yellow-bright', 'border-gray-900');
+                headerH1.classList.replace('text-crt-green-bright', 'text-gray-900');
+                headerIcon.classList.replace('text-crt-yellow-bright', 'text-indigo-600');
+                configLabel.classList.replace('text-crt-yellow-bright', 'text-indigo-600');
+
+
+                toggleButton.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"></path></svg>';
+                toggleButton.className = 'p-2 border-2 text-sm transition-colors rounded-none border-gray-900 bg-gray-300 text-gray-900 hover:bg-gray-400';
+
+                button.className = 'px-3 py-2 border-2 font-bold uppercase transition duration-150 rounded-none mt-auto h-full border-gray-900 bg-indigo-500 text-white shadow-[2px_2px_0_#333] hover:bg-indigo-600 hover:shadow-[3px_3px_0_#333]';
+
+                statusPanel.className = 'w-full p-3 mb-6 border-2 rounded-none border-green-600 bg-green-100';
+
+                selects.forEach(s => s.className = 'w-full p-2 border-2 focus:ring-0 focus:outline-none rounded-none font-mono-crt bg-white border-gray-900 text-gray-900');
+            }
+        };
+
+        const renderCourseList = (courses, isArchAway) => {
+            let html = '';
+            const isDark = document.body.classList.contains('bg-crt-dark');
+            const dividerClass = isDark ? 'dark:border-crt-green-medium' : 'border-gray-200';
+            const creditClass = isDark ? 'text-crt-green-bright' : 'text-gray-900';
+
+            courses.forEach((course, index) => {
+                const border = index < courses.length - 1 ? `border-b ${dividerClass}` : '';
+                const opacity = isArchAway ? 'opacity-80' : '';
+                
+                html += `
+                    <div class="p-1.5 flex justify-between items-center ${border} ${opacity}">
+                        <span class="font-bold">${course.code}</span>
+                        <span class="text-sm">${course.name}</span>
+                        <span class="text-right font-bold text-sm ${creditClass}">
+                            ${isArchAway ? 'N/A' : `${CREDIT_PER_COURSE} cr.`}
+                        </span>
+                    </div>
+                `;
             });
 
-            useEffect(() => {
-                const body = document.getElementById('body-wrapper');
-                if (body) {
-                    body.classList.add('crt');
-                    body.classList.remove('crt-dark', 'crt-green-text', 'bg-crt-dark', 'text-crt-green');
-                    body.classList.remove('crt-light', 'text-gray-900', 'bg-gray-100');
+            if (isArchAway) {
+                const textClass = isDark ? 'dark:text-crt-yellow-bright' : 'text-yellow-600';
+                html += `
+                    <p class="italic text-center py-6 ${textClass} text-xs">
+                        This semester is reserved for your Arch Away experience. No RPI credits are earned.
+                    </p>
+                `;
+            }
 
-                    if (isDarkMode) {
-                        body.classList.add('dark', 'bg-crt-dark', 'text-crt-green');
-                    } else {
-                        body.classList.remove('dark');
-                        body.classList.add('bg-gray-100', 'text-gray-900');
-                    }
-                    localStorage.setItem('isDarkMode', JSON.stringify(isDarkMode));
-                }
-            }, [isDarkMode]);
-
-            const terminalAccent = isDarkMode ? 'text-crt-green' : 'text-gray-900';
-
-            return { isDarkMode, setIsDarkMode, terminalAccent };
+            return html;
         };
 
-        // Terminal Wrapper Component
-        const TerminalWrapper = ({ children, headerContent, isDarkMode, setIsDarkMode, terminalAccent, handleSignOut, userIsAnonymous }) => {
-            return (
-                <div className={`mx-auto max-w-6xl p-6 border-2 shadow-xl min-h-[90vh] flex flex-col transition-all duration-500 
-                    ${isDarkMode 
-                        ? 'bg-crt-dark border-crt-green shadow-crt-green/50' 
-                        : 'bg-white border-gray-900 shadow-gray-400/50'
-                    }`}
-                >
-                    {/* Header */}
-                    <div className={`flex justify-between items-start pb-4 border-b-2 ${isDarkMode ? 'border-crt-green' : 'border-gray-900'}`}>
-                        <div className="flex flex-col">
-                            <h1 className={`text-xl font-bold uppercase ${terminalAccent}`}>T.R.R.A.M. ADVISOR v3.2</h1>
-                            <p className={`text-xs uppercase ${isDarkMode ? 'text-crt-green' : 'text-gray-600'}`}>System Online. Awaiting Input.</p>
-                        </div>
-                        <div className="flex items-center space-x-4">
-                            {headerContent}
-                            
-                            {/* Logout/Login Button */}
-                            {userIsAnonymous === false && handleSignOut && (
-                                <button
-                                    onClick={handleSignOut}
-                                    className={`flex items-center text-xs px-2 py-1 uppercase rounded-sm transition-colors duration-200 
-                                        ${isDarkMode 
-                                            ? 'text-crt-red hover:text-white hover:bg-crt-red border border-crt-red' 
-                                            : 'text-red-600 hover:text-white hover:bg-red-600 border border-red-600'
-                                        }`}
-                                >
-                                    <LogOutIcon className="w-4 h-4 mr-1" />
-                                    LOGOUT
-                                </button>
-                            )}
+        const renderSemesterCard = (slot) => {
+            const isDark = document.body.classList.contains('bg-crt-dark');
+            const isArchAway = slot.isArchAway;
+            const isDisplaced = slot.displayYear === '5th Year';
 
-                            {/* Dark Mode Toggle */}
-                            <button
-                                onClick={() => setIsDarkMode(!isDarkMode)}
-                                className={`${terminalAccent} hover:opacity-75`}
-                                title="Toggle Theme"
-                            >
-                                {isDarkMode ? <SunIcon className="w-6 h-6" /> : <MoonIcon className="w-6 h-6" />}
-                            </button>
-                        </div>
-                    </div>
-                    {/* Main Content */}
-                    <div className="flex-grow pt-4 overflow-y-auto">
-                        {children}
+            // Dynamic Styling
+            let cardClasses = "border-2 p-3 rounded-none";
+            let headerClasses = "text-lg font-bold mb-2 uppercase text-center border-b pb-1";
+            let footerClasses = "text-sm mt-2 pt-2 border-t text-right font-bold";
+
+            if (isArchAway) {
+                cardClasses += isDark ? " border-dashed dark:border-crt-yellow-bright dark:bg-[#1a001a]" : " border-dashed border-yellow-600 bg-yellow-50";
+                headerClasses += isDark ? " dark:border-crt-yellow-bright" : " border-yellow-600";
+                footerClasses += isDark ? " dark:border-crt-yellow-bright dark:text-crt-yellow-bright" : " border-yellow-600 text-yellow-600";
+            } else if (isDisplaced) {
+                cardClasses += isDark ? " dark:border-crt-yellow-bright dark:bg-[#1a1a00]" : " border-gray-900 bg-white";
+                headerClasses += isDark ? " dark:border-crt-yellow-bright" : " border-gray-700";
+                footerClasses += isDark ? " dark:border-crt-yellow-bright dark:text-crt-yellow-bright" : " border-gray-300 text-gray-600";
+            } else {
+                cardClasses += isDark ? " dark:border-crt-green-bright dark:bg-[#001a00]" : " border-gray-900 bg-white";
+                headerClasses += isDark ? " dark:border-crt-green-bright" : " border-gray-700";
+                footerClasses += isDark ? " dark:border-crt-green-medium dark:text-crt-green-bright" : " border-gray-300 text-gray-600";
+            }
+
+            return `
+                <div class="${cardClasses}">
+                    <h3 class="${headerClasses}">
+                        ${slot.id} - ${slot.chronologicalName} 
+                        <span class="text-xs font-normal">
+                            (${slot.displayYear})
+                        </span>
+                    </h3>
+                    ${renderCourseList(slot.courses, isArchAway)}
+                    <div class="${footerClasses}">
+                        Total: ${slot.credits} Credits
                     </div>
                 </div>
-            );
+            `;
         };
 
-        const ErrorMessage = ({ message, isDarkMode }) => (
-            <div className={`p-4 my-4 rounded-none border-2 font-bold uppercase ${isDarkMode ? 'border-crt-red text-crt-red' : 'border-red-600 text-red-600'}`}>
-                <p>ERROR: {message}</p>
-                <p className="text-xs mt-1">REBOOT REQUIRED.</p>
-            </div>
-        );
+        const renderSchedule = () => {
+            const startTerm = document.getElementById('start-term').value;
+            const archAwayId = document.getElementById('arch-away').value;
+            
+            const schedule = generateChronology(startTerm, archAwayId);
+            const totalCredits = schedule.reduce((acc, slot) => acc + slot.credits, 0);
 
-        const LoadingIndicator = ({ isDarkMode }) => (
-            <div className={`w-full text-center p-12 mt-10 ${isDarkMode ? 'text-crt-green' : 'text-gray-900'}`}>
-                <BotIcon className={`w-10 h-10 mx-auto mb-4 animate-spin ${isDarkMode ? 'text-crt-green' : 'text-gray-900'}`} />
-                <p className="text-lg uppercase">PROCESSING COMMAND...</p>
-                <p className="text-sm mt-2 italic">STAND BY. T.R.R.A.M. IS NOT KNOWN FOR SPEED. IT IS KNOWN FOR ACCURACY.</p>
-            </div>
-        );
+            const grid = document.getElementById('schedule-grid');
+            grid.innerHTML = schedule.map(renderSemesterCard).join('');
 
-        // ====================================================================
-        // 3. LOGIN SCREEN
-        // ====================================================================
+            document.getElementById('start-term-display').textContent = startTerm;
 
-        const LoginScreen = ({ auth, onLoginSuccess, setError, isDarkMode, terminalAccent }) => {
-            const [isRegister, setIsRegister] = useState(false);
-            const [email, setEmail] = useState('');
-            const [password, setPassword] = useState('');
-            const [loading, setLoading] = useState(false);
-
-            const handleSubmit = async (e) => {
-                e.preventDefault();
-                setLoading(true);
-                setError(null);
-
-                try {
-                    let userCredential;
-                    if (isRegister) {
-                        userCredential = await createUserWithEmailAndPassword(auth, email, password);
-                    } else {
-                        userCredential = await signInWithEmailAndPassword(auth, email, password);
-                    }
-                    console.log("Authentication successful:", userCredential.user.uid);
-                    onLoginSuccess();
-                } catch (e) {
-                    console.error("Authentication Error:", e.message);
-                    let displayMessage = "Authentication failed. Check credentials or network.";
-                    if (e.code === 'auth/email-already-in-use') {
-                        displayMessage = "Email already in use. Try logging in or use a different email.";
-                    } else if (e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password') {
-                        displayMessage = "Invalid credentials. Try again.";
-                    } else if (e.code === 'auth/weak-password') {
-                        displayMessage = "Password is too weak. Must be at least 6 characters.";
-                    }
-                    setError(displayMessage);
-                } finally {
-                    setLoading(false);
-                }
-            };
-
-            const handleAnonymousSignIn = async () => {
-                setLoading(true);
-                setError(null);
-                try {
-                    // This attempt will trigger the onAuthStateChanged in App, which handles the transition
-                    await signInAnonymously(auth); 
-                } catch (e) {
-                    console.error("Anonymous Sign-In Failed:", e.message);
-                    setError("Failed to initialize anonymous session. Please try again or create an account.");
-                } finally {
-                    setLoading(false);
-                }
-            }
-
-            return (
-                <div className="max-w-md mx-auto mt-24">
-                    <div className={`p-8 border-2 ${isDarkMode ? 'border-crt-green bg-crt-dark' : 'border-gray-900 bg-white'}`}>
-                        <h2 className={`text-2xl font-bold mb-6 text-center uppercase ${terminalAccent}`}>
-                            {isRegister ? 'REGISTER NEW USER' : 'SYSTEM LOGIN'}
-                        </h2>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
-                                <label className={`block text-sm font-bold uppercase mb-1 ${terminalAccent}`}>EMAIL:</label>
-                                <input
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    className={`w-full p-2 border-2 text-sm font-mono ${isDarkMode 
-                                        ? 'bg-black border-crt-green text-crt-green focus:ring-0' 
-                                        : 'bg-white border-gray-900 text-gray-900 focus:ring-0'
-                                    }`}
-                                    required
-                                    disabled={loading}
-                                />
-                            </div>
-                            <div>
-                                <label className={`block text-sm font-bold uppercase mb-1 ${terminalAccent}`}>PASSWORD:</label>
-                                <input
-                                    type="password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className={`w-full p-2 border-2 text-sm font-mono ${isDarkMode 
-                                        ? 'bg-black border-crt-green text-crt-green focus:ring-0' 
-                                        : 'bg-white border-gray-900 text-gray-900 focus:ring-0'
-                                    }`}
-                                    required
-                                    disabled={loading}
-                                />
-                            </div>
-                            <button
-                                type="submit"
-                                className={`w-full py-2 font-bold uppercase border-2 mt-4 transition-colors duration-200 ${loading ? 'opacity-50 cursor-not-allowed' : ''}
-                                    ${isDarkMode 
-                                        ? 'bg-crt-green text-crt-dark hover:bg-white hover:text-crt-dark' 
-                                        : 'bg-gray-900 text-white hover:bg-gray-600'
-                                    }`}
-                                disabled={loading}
-                            >
-                                {loading ? 'ACCESSING...' : isRegister ? 'REGISTER' : 'LOGIN'}
-                            </button>
-                        </form>
-                        
-                        <div className={`text-center mt-4 text-xs ${terminalAccent}`}>
-                            <button 
-                                onClick={() => setIsRegister(!isRegister)} 
-                                className="underline hover:text-crt-yellow"
-                                disabled={loading}
-                            >
-                                {isRegister ? 'Already have an account? Login.' : 'Need an account? Register.'}
-                            </button>
-                        </div>
-                        
-                        <div className={`text-center my-4 ${isDarkMode ? 'text-crt-green' : 'text-gray-600'}`}>
-                            — OR —
-                        </div>
-
-                        <button
-                            onClick={handleAnonymousSignIn}
-                            className={`w-full py-2 font-bold uppercase border-2 text-sm transition-colors duration-200 ${loading ? 'opacity-50 cursor-not-allowed' : ''}
-                                ${isDarkMode 
-                                    ? 'border-crt-green text-crt-green hover:bg-crt-green hover:text-crt-dark' 
-                                    : 'border-gray-900 text-gray-900 hover:bg-gray-900 hover:text-white'
-                                }`}
-                            disabled={loading}
-                        >
-                            Skip for Anonymous Access
-                        </button>
-                        <p className={`text-center mt-2 text-xs ${isDarkMode ? 'text-crt-yellow' : 'text-red-500'}`}>
-                            (WARNING: Anonymous access prevents plan saving.)
-                        </p>
-                    </div>
-                </div>
-            );
+            // Update Status Panel
+            const statusPanel = document.getElementById('status-panel');
+            statusPanel.innerHTML = `<span class="font-bold">SYSTEM STATUS:</span> Showing **Computer Science** Placeholder Plan. Total Planned Credits: **${totalCredits}**.`;
         };
 
-        // ====================================================================
-        // 4. MAIN APP LOGIC AND COMPONENTS
-        // ====================================================================
+        // --- INITIALIZATION ---
 
-        const App = () => {
-            const { isDarkMode, setIsDarkMode, terminalAccent } = useDarkMode();
+        const init = () => {
+            // Populate selectors
+            const startTermSelect = document.getElementById('start-term');
+            START_TERM_OPTIONS.forEach(opt => {
+                startTermSelect.innerHTML += `<option value="${opt.value}">${opt.label}</option>`;
+            });
+
+            const archAwaySelect = document.getElementById('arch-away');
+            ARCH_SEMESTER_OPTIONS.forEach(opt => {
+                archAwaySelect.innerHTML += `<option value="${opt.value}">${opt.label}</option>`;
+            });
+
+            // Load theme preference
+            const savedTheme = localStorage.getItem('trram-theme');
+            let isDark = savedTheme === 'dark' || (savedTheme === null && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            applyTheme(isDark);
+
+            // Event Listeners
+            const elementsToListen = [startTermSelect, archAwaySelect, document.getElementById('recalculate-button')];
+            elementsToListen.forEach(el => el.addEventListener('change', renderSchedule));
+            document.getElementById('recalculate-button').addEventListener('click', renderSchedule);
             
-            // Firebase State
-            const [db, setDb] = useState(null);
-            const [auth, setAuth] = useState(null);
-            const [userId, setUserId] = useState(null);
-            const [userIsAnonymous, setUserIsAnonymous] = useState(false);
-            const [authReady, setAuthReady] = useState(false); // New flag for initial check completion
-            
-            // App State
-            const [view, setView] = useState('loading'); // 'loading', 'login', 'planner'
-            const [plan, setPlan] = useState(null); // The CoursePlan object from Gemini/Firestore
-            const [majorInput, setMajorInput] = useState('');
-            const [notesInput, setNotesInput] = useState('');
-            const [loading, setLoading] = useState(false); // For Gemini API calls
-            const [error, setError] = useState(null); // For general errors
+            document.getElementById('theme-toggle').addEventListener('click', () => {
+                isDark = !isDark;
+                localStorage.setItem('trram-theme', isDark ? 'dark' : 'light');
+                applyTheme(isDark);
+                renderSchedule(); // Re-render to update card colors
+            });
 
-            const initialAuthToken = null; // Can be used for custom auth flow
-
-            // --- Gemini API Handler ---
-            const generatePlan = useCallback(async () => {
-                if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY") {
-                    setError("GEMINI API Key not configured. Please check source code.");
-                    return;
-                }
-                if (!majorInput) {
-                    setError("Major field cannot be empty. T.R.R.A.M. requires data.");
-                    return;
-                }
-                
-                setLoading(true);
-                setError(null);
-                setPlan(null); // Clear previous plan
-
-                try {
-                    const finalPrompt = INITIAL_PROMPT
-                        .replace('[USER_MAJOR_INPUT]', majorInput)
-                        .replace('[USER_NOTES_INPUT]', notesInput || 'None.');
-
-                    const ai = new GoogleGenerativeAI(GEMINI_API_KEY);
-                    const model = ai.getGenerativeModel({ 
-                        model: "gemini-2.5-flash",
-                        config: {
-                            responseMimeType: "application/json",
-                            responseSchema: {
-                                type: "object",
-                                properties: {
-                                    major: { type: "string" },
-                                    description: { type: "string" },
-                                    semesters: {
-                                        type: "array",
-                                        items: {
-                                            type: "object",
-                                            properties: {
-                                                id: { type: "string" },
-                                                name: { type: "string" },
-                                                isSummer: { type: "boolean" },
-                                                courses: {
-                                                    type: "array",
-                                                    items: {
-                                                        type: "object",
-                                                        properties: {
-                                                            id: { type: "string" },
-                                                            code: { type: "string" },
-                                                            name: { type: "string" },
-                                                            credits: { type: "number" },
-                                                            isComplete: { type: "boolean" },
-                                                        },
-                                                        required: ["id", "code", "name", "credits", "isComplete"],
-                                                    },
-                                                },
-                                            },
-                                            required: ["id", "name", "isSummer", "courses"],
-                                        },
-                                    },
-                                },
-                                required: ["major", "description", "semesters"],
-                            }
-                        }
-                    });
-
-                    const result = await model.generateContent(finalPrompt);
-                    const jsonText = result.text.trim().replace(/^```json\s*|```\s*$/g, '');
-                    const newPlan = JSON.parse(jsonText);
-                    
-                    if (newPlan && newPlan.semesters && newPlan.semesters.length > 0) {
-                        setPlan(newPlan);
-                        // Attempt to auto-save after successful generation (only for logged-in users)
-                        if (userId && !userIsAnonymous) {
-                            await savePlan(newPlan);
-                        }
-                    } else {
-                        throw new Error("T.R.R.A.M. returned an invalid or empty plan structure.");
-                    }
-                    
-                } catch (e) {
-                    console.error("Gemini API Error:", e);
-                    setError(`GENERATION FAILED: ${e.message}. T.R.R.A.M. IS DISPLEASED.`);
-                } finally {
-                    setLoading(false);
-                }
-            }, [majorInput, notesInput, userId, userIsAnonymous]);
-
-            // --- Firestore Handlers ---
-            const planRef = useCallback(() => {
-                if (db && userId) {
-                    return doc(db, 'plans', userId);
-                }
-                return null;
-            }, [db, userId]);
-
-            const savePlan = useCallback(async (currentPlan) => {
-                const ref = planRef();
-                if (!ref || userIsAnonymous) {
-                    console.log("Save skipped: User is anonymous or DB not ready.");
-                    return;
-                }
-                try {
-                    await setDoc(ref, currentPlan, { merge: false });
-                    console.log("Plan saved successfully for user:", userId);
-                    // No need to setPlan here as the state is already the latest.
-                } catch (e) {
-                    console.error("Firestore Save Error:", e);
-                    setError("CRITICAL SAVE ERROR. Could not save plan to user profile.");
-                }
-            }, [planRef, userId, userIsAnonymous]);
-
-            const loadPlan = useCallback(async () => {
-                const ref = planRef();
-                if (!ref) return;
-
-                try {
-                    const docSnap = await getDoc(ref);
-                    if (docSnap.exists()) {
-                        setPlan(docSnap.data());
-                        setMajorInput(docSnap.data().major || '');
-                        console.log("Plan loaded successfully.");
-                    } else {
-                        console.log("No existing plan found for user. Starting fresh.");
-                    }
-                } catch (e) {
-                    console.error("Firestore Load Error:", e);
-                    setError("CRITICAL LOAD ERROR. Could not retrieve plan.");
-                }
-            }, [planRef]);
-
-            // --- State Mutators ---
-            const toggleCourseCompletion = useCallback((semesterId, courseId, semester) => {
-                setPlan(currentPlan => {
-                    if (!currentPlan) return currentPlan;
-
-                    const newPlan = JSON.parse(JSON.stringify(currentPlan));
-                    
-                    const targetSemester = newPlan.semesters.find(s => s.id === semesterId);
-                    if (!targetSemester) return currentPlan;
-
-                    const targetCourse = targetSemester.courses.find(c => c.id === courseId);
-                    if (!targetCourse) return currentPlan;
-                    
-                    targetCourse.isComplete = !targetCourse.isComplete;
-                    
-                    // Auto-save the updated plan (only for logged-in users)
-                    if (userId && !userIsAnonymous) {
-                        savePlan(newPlan);
-                    }
-                    
-                    return newPlan;
-                });
-            }, [userId, userIsAnonymous, savePlan]);
-            
-            // --- Authentication Handlers ---
-            const handleSignOut = async () => {
-                if (auth && signOut) {
-                    try {
-                        // CRITICAL: Set the view to 'login' *before* signing out
-                        // This prevents the onAuthStateChanged listener from automatically trying
-                        // to sign the user back in anonymously.
-                        setView('login'); 
-                        await signOut(auth);
-                        setPlan(null);
-                        setMajorInput('');
-                        setNotesInput('');
-                        // The onAuthStateChanged listener handles setting userId/userIsAnonymous to null/false
-                    } catch (e) {
-                        console.error("Sign Out Error:", e);
-                        setError("Error: Failed to sign out.");
-                    }
-                }
-            };
-
-            // ====================================================================
-            // 5. USE EFFECTS (CRITICAL FIREBASE LOGIC)
-            // ====================================================================
-
-            // 1. Firebase Initialization and Auth Listener
-            useEffect(() => {
-                // Wait for SDKs to be fully loaded
-                const handleSDKLoad = () => {
-                    // Only run once and if Firebase config is valid
-                    if (authReady) return; 
-
-                    try {
-                        const app = initializeApp(firebaseConfig);
-                        const authInstance = getAuth(app);
-                        const dbInstance = getFirestore(app);
-                        
-                        setDb(dbInstance);
-                        setAuth(authInstance);
-
-                        // Set session persistence to maintain session across tabs/reloads
-                        setPersistence(authInstance, browserSessionPersistence)
-                            .then(() => {
-                                console.log("Auth Persistence set to browserSessionPersistence.");
-                            });
-
-                        const unsubscribe = onAuthStateChanged(authInstance, async (user) => {
-                            setAuthReady(true); // Signal that the initial auth check is complete
-                            setError(null); // Clear any old error once auth state is checked
-
-                            if (user) {
-                                // User is signed in (either persistent or anonymous)
-                                setUserId(user.uid);
-                                setUserIsAnonymous(user.isAnonymous);
-                                setView('planner');
-                                
-                                if (!user.isAnonymous) {
-                                    // Only load plan for non-anonymous users
-                                    loadPlan();
-                                }
-                                console.log(`Auth State: Signed in. User ID: ${user.uid} (Anonymous: ${user.isAnonymous})`);
-                            } else {
-                                // User is logged out.
-                                setUserId(null);
-                                setUserIsAnonymous(false);
-                                setPlan(null);
-                                
-                                // Check if we should attempt anonymous sign-in or force login view
-                                if (view !== 'login') {
-                                    // If we are starting fresh (not explicitly logged out)
-                                    try {
-                                        // 1. Try custom token sign-in (if provided, for more complex setups)
-                                        if (initialAuthToken) {
-                                            await signInWithCustomToken(authInstance, initialAuthToken);
-                                            return; // onAuthStateChanged will re-run with the signed-in user
-                                        }
-
-                                        // 2. Final fallback: sign in anonymously for a default experience
-                                        console.log("No user found. Attempting anonymous sign-in...");
-                                        const userCredential = await signInAnonymously(authInstance);
-                                        // The userCredential above triggers a new onAuthStateChanged call, 
-                                        // which then executes the 'if (user)' block.
-                                        
-                                    } catch (anonErr) {
-                                        console.error("Anonymous Sign-In Failed:", anonErr.message);
-                                        // If everything fails (e.g., anonymous auth disabled), force login view
-                                        setView('login'); 
-                                    }
-                                } else {
-                                    // If 'view' is already 'login', keep it there (it was an explicit sign-out)
-                                    setView('login');
-                                }
-                            }
-                        });
-
-                        return () => unsubscribe();
-                    } catch (err) {
-                        console.error("Firebase Init Error:", err);
-                        setError("System Error: Could not initialize Firebase services. Check console for details.");
-                        setAuthReady(true);
-                        setView('login'); // Cannot initialize, so show login/error screen
-                    }
-                };
-
-                // Listen for custom event that signals SDKs are loaded (from the <script type="module"> block)
-                document.addEventListener('sdkLoadComplete', handleSDKLoad);
-
-                return () => {
-                    document.removeEventListener('sdkLoadComplete', handleSDKLoad);
-                };
-            }, [authReady, view, initialAuthToken, loadPlan]);
-
-            // ====================================================================
-            // 6. RENDER LOGIC
-            // ====================================================================
-            
-            const totalCredits = useMemo(() => {
-                if (!plan) return 0;
-                return plan.semesters.reduce((sum, semester) => {
-                    return sum + semester.courses.reduce((courseSum, course) => courseSum + course.credits, 0);
-                }, 0);
-            }, [plan]);
-
-            const completedCredits = useMemo(() => {
-                if (!plan) return 0;
-                return plan.semesters.reduce((sum, semester) => {
-                    return sum + semester.courses.filter(c => c.isComplete).reduce((courseSum, course) => courseSum + course.credits, 0);
-                }, 0);
-            }, [plan]);
-            
-            const completionPercentage = totalCredits > 0 ? Math.round((completedCredits / totalCredits) * 100) : 0;
-
-
-            if (!authReady || view === 'loading') {
-                return (
-                    <TerminalWrapper isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} terminalAccent={terminalAccent} userIsAnonymous={userIsAnonymous}>
-                        <LoadingIndicator isDarkMode={isDarkMode} />
-                    </TerminalWrapper>
-                );
-            }
-
-            if (view === 'login') {
-                return (
-                    <TerminalWrapper isDarkMode={isDarkMode} setIsDarkMode={setIsDarkMode} terminalAccent={terminalAccent} userIsAnonymous={userIsAnonymous}>
-                        {error && <ErrorMessage message={error} isDarkMode={isDarkMode} />}
-                        <LoginScreen 
-                            auth={auth} 
-                            onLoginSuccess={() => setView('planner')} 
-                            setError={setError}
-                            isDarkMode={isDarkMode}
-                            terminalAccent={terminalAccent}
-                        />
-                    </TerminalWrapper>
-                );
-            }
-            
-            // --- Planner View ---
-            return (
-                <TerminalWrapper 
-                    isDarkMode={isDarkMode} 
-                    setIsDarkMode={setIsDarkMode} 
-                    terminalAccent={terminalAccent} 
-                    handleSignOut={handleSignOut}
-                    userIsAnonymous={userIsAnonymous}
-                    headerContent={
-                        plan ? (
-                            <div className={`text-right text-xs uppercase ${terminalAccent}`}>
-                                <p className="font-bold">PLAN: {plan.major}</p>
-                                <p>Progress: {completedCredits}/{totalCredits} Credits ({completionPercentage}%)</p>
-                            </div>
-                        ) : null
-                    }
-                >
-                    {error && <ErrorMessage message={error} isDarkMode={isDarkMode} />}
-                    
-                    {/* Input Area */}
-                    <div className={`p-4 mb-6 border-2 flex flex-col space-y-4 
-                        ${isDarkMode ? 'border-crt-green' : 'border-gray-900'}`}
-                    >
-                        <div className="flex space-x-4">
-                            <div className="flex-1">
-                                <label className={`block text-xs font-bold uppercase mb-1 ${terminalAccent}`}>Major/Program:</label>
-                                <input
-                                    type="text"
-                                    value={majorInput}
-                                    onChange={(e) => setMajorInput(e.target.value)}
-                                    placeholder="e.g., 'B.S. in Computer Science'"
-                                    className={`w-full p-2 text-sm font-mono border-2 ${isDarkMode 
-                                        ? 'bg-black border-crt-green text-crt-green focus:ring-0' 
-                                        : 'bg-white border-gray-900 text-gray-900 focus:ring-0'
-                                    }`}
-                                    disabled={loading}
-                                />
-                            </div>
-                            <div className="flex-1">
-                                <label className={`block text-xs font-bold uppercase mb-1 ${terminalAccent}`}>Special Notes (Optional):</label>
-                                <input
-                                    type="text"
-                                    value={notesInput}
-                                    onChange={(e) => setNotesInput(e.target.value)}
-                                    placeholder="e.g., 'Need Calculus I and II transfer credit.'"
-                                    className={`w-full p-2 text-sm font-mono border-2 ${isDarkMode 
-                                        ? 'bg-black border-crt-green text-crt-green focus:ring-0' 
-                                        : 'bg-white border-gray-900 text-gray-900 focus:ring-0'
-                                    }`}
-                                    disabled={loading}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="flex space-x-4">
-                            <button
-                                onClick={generatePlan}
-                                className={`flex items-center justify-center flex-1 py-3 font-bold uppercase border-2 transition-colors duration-200 
-                                    ${loading ? 'opacity-50 cursor-not-allowed' : ''}
-                                    ${isDarkMode 
-                                        ? 'bg-crt-green text-crt-dark hover:bg-white hover:text-crt-dark' 
-                                        : 'bg-gray-900 text-white hover:bg-gray-600'
-                                    }`}
-                                disabled={loading}
-                            >
-                                <SendIcon className="w-5 h-5 mr-2" />
-                                {loading ? 'GENERATING...' : 'RUN PLAN GENERATION'}
-                            </button>
-                            
-                            {/* Save Button (Only for non-anonymous users) */}
-                            {userId && !userIsAnonymous && plan && (
-                                <button
-                                    onClick={() => savePlan(plan)}
-                                    className={`flex items-center justify-center w-40 py-3 font-bold uppercase border-2 transition-colors duration-200 
-                                        ${isDarkMode 
-                                            ? 'border-crt-yellow text-crt-yellow hover:bg-crt-yellow hover:text-crt-dark' 
-                                            : 'border-yellow-600 text-yellow-600 hover:bg-yellow-600 hover:text-white'
-                                        }`}
-                                    disabled={loading}
-                                >
-                                    <SaveIcon className="w-5 h-5 mr-2" />
-                                    SAVE PLAN
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                    
-                    {/* Anonymous User Warning */}
-                    {userIsAnonymous && (
-                        <div className={`p-2 mb-4 text-center border-2 ${isDarkMode ? 'border-crt-yellow text-crt-yellow' : 'border-yellow-600 text-yellow-600'}`}>
-                            <p className="font-bold uppercase text-sm">WARNING: Anonymous Mode Active.</p>
-                            <p className="text-xs">Your plan will not be saved. Please log in or register to enable saving.</p>
-                        </div>
-                    )}
-
-
-                    {/* Plan Output */}
-                    {loading && <LoadingIndicator isDarkMode={isDarkMode} />}
-
-                    {plan && !loading ? (
-                        <div className="space-y-6">
-                            <div className={`p-4 border-2 ${isDarkMode ? 'border-crt-green text-crt-green' : 'border-gray-900 text-gray-900'}`}>
-                                <h2 className="text-lg font-bold uppercase mb-2">T.R.R.A.M. Summary</h2>
-                                <p className="italic">"{plan.description}"</p>
-                                <div className={`mt-4 pt-2 border-t text-sm font-bold uppercase ${isDarkMode ? 'border-crt-green' : 'border-gray-400'}`}>
-                                    Total Credits Planned: {totalCredits}
-                                </div>
-                            </div>
-                            
-                            {plan.semesters.map(semester => (
-                                <div key={semester.id} className={`p-4 border-2 ${isDarkMode ? 'border-crt-green' : 'border-gray-900'} 
-                                    ${semester.isSummer ? (isDarkMode ? 'bg-crt-dark/70' : 'bg-gray-200') : ''}`}>
-                                    
-                                    <h3 className={`text-xl font-bold uppercase mb-4 ${terminalAccent}`}>
-                                        {semester.name}
-                                        {semester.isSummer && <span className="text-xs ml-2">(Summer Session)</span>}
-                                    </h3>
-                                    
-                                    {semester.courses.length === 0 ? (
-                                        <p className="italic text-sm">Designated free session. Enjoy the break, mortal.</p>
-                                    ) : (
-                                        <>
-                                            <ul className="space-y-2">
-                                                {semester.courses.map(course => (
-                                                    <li 
-                                                        key={course.id} 
-                                                        className={`flex justify-between items-center p-2 cursor-pointer border-l-4 transition-colors duration-150 
-                                                            ${course.isComplete 
-                                                                ? (isDarkMode ? 'border-crt-green line-through opacity-70' : 'border-green-600 line-through opacity-70')
-                                                                : (isDarkMode ? 'border-crt-yellow hover:bg-crt-dark/50' : 'border-gray-900 hover:bg-gray-100')
-                                                            }`}
-                                                        onClick={() => toggleCourseCompletion(semester.id, course.id, semester)}
-                                                    >
-                                                        <div className="flex items-center">
-                                                            {course.isComplete && <CheckIcon className={`w-4 h-4 mr-2 ${isDarkMode ? 'text-crt-green' : 'text-green-600'}`} />}
-                                                            <span className="font-bold uppercase mr-4">{course.code}</span>
-                                                            <span className="text-sm">{course.name}</span>
-                                                        </div>
-                                                        <span className={`text-sm font-mono ${isDarkMode ? 'text-crt-yellow' : 'text-gray-600'}`}>
-                                                            {course.credits} Credits
-                                                        </span>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                            <div className={`mt-4 pt-2 border-t text-sm font-bold uppercase ${isDarkMode ? 'border-crt-green text-crt-green' : 'border-gray-400 text-gray-600'}`}>
-                                                Total: {semester.courses.reduce((sum, c) => sum + c.credits, 0)} Credits
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className={`w-full text-center p-12 border-2 border-dashed rounded-none mt-10 
-                            ${isDarkMode ? 'border-crt-green text-crt-green' : 'border-gray-500 text-gray-600'}`
-                        }>
-                            <BotIcon className={`w-10 h-10 mx-auto mb-4 animate-pulse ${terminalAccent}`} />
-                            <p className="text-lg uppercase">INITIALIZED. T.R.R.A.M. AWAITS COMMANDS.</p>
-                            <p className="text-sm mt-2">Enter your program(s) above and click 'Run Plan' to start course generation.</p>
-                            <p className="text-sm mt-4 italic">
-                                Data will save automatically if you are logged in with an email/password account.
-                            </p>
-                        </div>
-                    )}
-                </TerminalWrapper>
-            );
+            // Start Firebase setup and initial render
+            setupFirebase();
         };
 
-        // Render the main component
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        window.onload = init;
     </script>
 </body>
 </html>
