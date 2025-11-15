@@ -64,33 +64,23 @@ TRRAM is a web platform designed to help RPI students navigate course registrati
     4. Scraping: Python (BeautifulSoup, Requests, Selenium)
     5. Deployment: Vercel, Netlify, AWS, or Docker
 
-### Installation
+### Program Stucture
 
-1. Clone the repository:
+1. Scraper:
 ```
-git clone https://github.com/trivikak/hackrpi2025
-cd hackrpi2025
+rpi_courses # Has the RPICourses scraping software by Jeff Hui
+coursescraper.py  # Main implementation of the course scraping software
 ```
 
 2. Backend Setup
 ```
-cd backend
-npm install
-npm run dev
 ```
 
 2. Frontend Setup
 ```
-cd frontend
-npm install
-npm run dev
-```
-
-3. Scraper Setup
-```
-cd scraper
-pip install -r requirements.txt
-python scrape.py
+index.html  # Website html
+TRRAM.jsx   # Website interactive html
+CNAME   # Website name
 ```
 
 ### Data Use and Compliance
