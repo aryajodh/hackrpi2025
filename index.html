@@ -69,7 +69,7 @@
     <!-- 2. Load Babel (Needed to compile JSX) -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-    <!-- 3. Load Firebase Modules -->
+    <!-- 3. Load Firebase Modules (EXPOSED GLOBALLY) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -81,12 +81,13 @@
             getFirestore, doc, onSnapshot, setDoc, serverTimestamp, setLogLevel 
         };
         
-        // Ensure global variables are set, even if they're empty strings
+        // Ensure global config variables are set, even if they're empty strings
         if (typeof window.__app_id === 'undefined') window.__app_id = 'default-app-id';
         if (typeof window.__firebase_config === 'undefined') window.__firebase_config = '{}';
         if (typeof window.__initial_auth_token === 'undefined') window.__initial_auth_token = null;
 
-        console.log("Firebase services loaded.");
+        console.log("Firebase services loaded and exposed globally.");
+        window.isFirebaseSdkLoaded = true;
     </script>
     
     <!-- 4. Load the Application Logic (JSX) -->
@@ -119,7 +120,7 @@
         );
         const LoaderIcon = (props) => (
             <Icon {...props}>
-                <path d="M21.5 2C17 2 13 4 12 7M2.5 22C7 22 11 20 12 17M12 22v-3M12 2v3"></path>
+                <path d="M21.5 2C17 2 13 4 12 7M2.5 22C7 22 11 20 12 17M12 22v-3M12 2v3"/>
             </Icon>
         );
         const XIcon = (props) => (
@@ -160,6 +161,10 @@
             initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
             getFirestore, doc, onSnapshot, setDoc, serverTimestamp, setLogLevel
         } = FirebaseServices;
+        
+        // Flag to check if Firebase functions are available
+        const isSDKLoaded = !!initializeApp && !!getAuth && !!getFirestore;
+
 
         // --- Course Data Structure for AI Output (JSON Schema) ---
         const COURSE_PLAN_SCHEMA = {
@@ -241,7 +246,7 @@
         };
 
         /** Applies the CRT Terminal style to the entire app. */
-        const TerminalWrapper = ({ children, isDarkMode, toggleDarkMode, userId }) => (
+        const TerminalWrapper = ({ children, isDarkMode, toggleDarkMode, userId, isEnvReady }) => (
             <div className={`min-h-screen p-4 sm:p-8 flex flex-col items-center w-full transition-colors duration-500
                 ${isDarkMode 
                     ? 'bg-[#000000] text-crt-green' 
@@ -280,7 +285,7 @@
                             >
                                 {isDarkMode ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
                             </button>
-                            <p className={`mt-2 text-xs ${isDarkMode ? 'text-[#008800]' : 'text-gray-600'}`}>User ID: {userId ? userId.substring(0, 8) + '...' : 'N/A'}</p>
+                            <p className={`mt-2 text-xs ${isDarkMode ? 'text-[#008800]' : 'text-gray-600'}`}>User ID: {userId ? userId.substring(0, 8) + '...' : (isEnvReady ? 'Anon' : 'Loading')}</p>
                         </div>
                     </header>
 
@@ -352,14 +357,21 @@
 
             // --- Firebase Initialization and Authentication ---
             useEffect(() => {
-                if (!firebaseConfig || !initializeApp) {
-                    setError("System Error: Firebase config or SDK is missing.");
-                    setAuthReady(true);
+                // Only attempt initialization if the SDK is confirmed loaded
+                if (!isSDKLoaded) {
+                    setError("System Alert: Waiting for Firebase SDK to load...");
                     return;
                 }
-                
+                if (authReady) return; // Already initialized
+
                 try {
                     setLogLevel('debug');
+                    
+                    // Critical check: Ensure config is not an empty object if we expect it
+                    if (Object.keys(firebaseConfig).length === 0) {
+                        console.warn("Firebase Config is empty. Proceeding with anonymous sign-in.");
+                    }
+
                     const app = initializeApp(firebaseConfig);
                     const authInstance = getAuth(app);
                     const dbInstance = getFirestore(app);
@@ -370,30 +382,34 @@
                             setUserId(user.uid);
                             console.log("Auth State: Signed in. User ID:", user.uid);
                         } else {
+                            // If the initial token is present, try custom sign-in
                             if (initialAuthToken) {
                                 try {
                                     const userCredential = await signInWithCustomToken(authInstance, initialAuthToken);
                                     setUserId(userCredential.user.uid);
                                 } catch (err) {
-                                    console.warn("Custom Token Sign-In Failed. Falling back to Anonymous.");
+                                    console.warn("Custom Token Sign-In Failed:", err.message);
                                     const userCredential = await signInAnonymously(authInstance);
                                     setUserId(userCredential.user.uid);
                                 }
                             } else {
+                                // Fallback to anonymous sign-in
                                 const userCredential = await signInAnonymously(authInstance);
                                 setUserId(userCredential.user.uid);
                             }
                         }
                         setAuthReady(true); 
+                        setError(null); // Clear any pending SDK load errors
                     });
 
                     return () => unsubscribe();
                 } catch (err) {
                     console.error("Firebase Init Error:", err);
-                    setError("System Error: Could not initialize Firebase services.");
+                    // This is the source of the user's observed error.
+                    setError("System Error: Could not initialize Firebase services. Check console for details.");
                     setAuthReady(true);
                 }
-            }, [initialAuthToken]);
+            }, [initialAuthToken, authReady]); // Dependencies include authReady to ensure we only run once
 
             // --- Firestore Path Helper ---
             const getPlanDocRef = useCallback(() => {
@@ -405,6 +421,7 @@
             // --- Load Plan from Firestore (Real-time Listener) ---
             useEffect(() => {
                 const docRef = getPlanDocRef();
+                // Ensure authentication is complete and the doc reference is valid before attaching listener
                 if (!authReady || !docRef || !onSnapshot) return;
                 
                 const unsubscribe = onSnapshot(docRef, (docSnap) => {
@@ -419,7 +436,10 @@
                     }
                 }, (err) => {
                     console.error("Firestore onSnapshot error:", err);
-                    setError("Error: Failed to load plan data.");
+                    // Only set error if it's not the initial 'waiting for auth' state
+                    if (authReady) { 
+                        setError("Error: Failed to load plan data.");
+                    }
                 });
 
                 return () => unsubscribe();
@@ -429,7 +449,7 @@
             const savePlan = useCallback(async (currentPlan = plan) => {
                 const docRef = getPlanDocRef();
                 if (!docRef || !currentPlan || !setDoc || !serverTimestamp) {
-                    setError("Error: Cannot save. Firebase functions or plan data is missing.");
+                    setError("Error: Cannot save. Firebase connection missing or plan data is empty.");
                     return;
                 }
                 
@@ -445,7 +465,7 @@
                     console.log("Plan saved successfully!");
                 } catch (e) {
                     console.error("Error saving document: ", e);
-                    setError("Error: Failed to save the plan.");
+                    setError("Error: Failed to save the plan. See console for permissions details.");
                 } finally {
                     setLoading(false);
                 }
@@ -556,8 +576,23 @@
             const errorColor = isDarkMode ? 'border-[#ff0000] bg-[#440000] text-[#ff0000]' : 'border-red-600 bg-red-100 text-red-800';
             const infoColor = isDarkMode ? 'border-crt-green bg-[#004400]' : 'border-green-600 bg-green-100';
 
+            // Check if environment is ready
+            if (!isSDKLoaded) {
+                return (
+                    <TerminalWrapper isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} userId={null} isEnvReady={false}>
+                        <div className={`w-full text-center p-12 border-2 border-dashed rounded-none mt-10 
+                            ${isDarkMode ? 'border-crt-green text-crt-green' : 'border-gray-500 text-gray-600'}`}>
+                            <LoaderIcon className={`w-10 h-10 mx-auto mb-4 animate-spin ${terminalAccent}`} />
+                            <p className="text-lg uppercase">SYSTEM BOOTING... LOADING REQUIRED SDKS.</p>
+                            <p className="text-sm mt-2">Please wait while the environment initializes.</p>
+                        </div>
+                    </TerminalWrapper>
+                );
+            }
+
+
             return (
-                <TerminalWrapper isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} userId={userId}>
+                <TerminalWrapper isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} userId={userId} isEnvReady={authReady}>
                     
                     {/* Input Section (Bot Command Line) */}
                     <div className="w-full mb-6">
