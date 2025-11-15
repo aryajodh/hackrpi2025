@@ -67,35 +67,31 @@ TRRAM is a web platform designed to help RPI students navigate course registrati
 ### Installation
 
 1. Clone the repository:
+```
 git clone https://github.com/trivikak/hackrpi2025
 cd hackrpi2025
+```
 
 2. Backend Setup
+```
 cd backend
 npm install
-npm run dev```
+npm run dev
+```
 
 2. Frontend Setup
+```
 cd frontend
 npm install
 npm run dev
+```
 
 3. Scraper Setup
+```
 cd scraper
 pip install -r requirements.txt
 python scrape.py
-
-### Project Structure (example)
-
-hackrpi2025/
-│
-├── frontend/        # React frontend
-├── backend/         # API server
-├── scraper/         # Data scraping scripts
-├── data/            # Processed and cleaned datasets
-├── docs/            # Additional documentation
-├── LICENSE
-└── README.md
+```
 
 ### Data Use and Compliance
 Before scraping or integrating data, confirm compliance with:
