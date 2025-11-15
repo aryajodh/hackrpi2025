@@ -19,6 +19,7 @@
                         'crt-green': '#00ff00',
                         'crt-dark': '#001a00',
                         'crt-yellow': '#ffcc00',
+                        'crt-red': '#ff0000',
                     }
                 }
             }
@@ -72,12 +73,21 @@
     <!-- 3. Load Firebase Modules (EXPOSED GLOBALLY) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getAuth, 
+            signInAnonymously, 
+            signInWithCustomToken, 
+            onAuthStateChanged,
+            createUserWithEmailAndPassword,
+            signInWithEmailAndPassword,
+            signOut
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, onSnapshot, setDoc, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Expose Firebase functions globally for the Babel script block to access
         window.FirebaseServices = { 
             initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
+            createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut,
             getFirestore, doc, onSnapshot, setDoc, serverTimestamp, setLogLevel 
         };
         
@@ -94,7 +104,7 @@
     <script type="text/babel">
         const { useState, useEffect, useCallback, useMemo } = React;
 
-        // --- Inline SVG Icons (Replacing lucide-react) ---
+        // --- Inline SVG Icons (FIXED: Added MoonIcon and SunIcon) ---
         const Icon = ({ children, className }) => (
             <svg className={`w-5 h-5 ${className}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                 {children}
@@ -129,9 +139,23 @@
                 <line x1="6" y1="6" x2="18" y2="18"></line>
             </Icon>
         );
-        const MoonIcon = (props) => (
+        const MailIcon = (props) => (
             <Icon {...props}>
-                <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"></path>
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                <polyline points="22,6 12,13 2,6"></polyline>
+            </Icon>
+        );
+        const LockIcon = (props) => (
+            <Icon {...props}>
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0110 0v4"></path>
+            </Icon>
+        );
+        const LogOutIcon = (props) => (
+            <Icon {...props}>
+                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
             </Icon>
         );
         const SunIcon = (props) => (
@@ -147,8 +171,12 @@
                 <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
             </Icon>
         );
-
-
+        const MoonIcon = (props) => (
+            <Icon {...props}>
+                <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"></path>
+            </Icon>
+        );
+        
         // --- Global Variables (Read from window) ---
         const appId = window.__app_id || 'default-trram-planner';
         const firebaseConfig = JSON.parse(window.__firebase_config || '{}');
@@ -159,6 +187,7 @@
         // Destructure Firebase functions
         const { 
             initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
+            createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut,
             getFirestore, doc, onSnapshot, setDoc, serverTimestamp, setLogLevel
         } = FirebaseServices;
         
@@ -193,7 +222,7 @@
             }
         };
 
-        // --- System Instruction for Gemini ---
+        // --- System Instruction for Gemini (Unchanged) ---
         const SYSTEM_INSTRUCTION = `
         You are a highly specialized RPI Academic Advisor Bot, T.R.R.A.M. (The Retro Registration Autonomous Machine). Your task is to generate a comprehensive, 4-year (8-semester) course plan for a student based on their declared major(s).
 
@@ -210,10 +239,10 @@
 
         // --- Utility Components for Retro Styling ---
 
-        /** Custom Hook for Dark Mode */
+        /** Custom Hook for Dark Mode (Unchanged) */
         const useDarkMode = () => {
             const [isDarkMode, setIsDarkMode] = useState(false);
-
+            
             useEffect(() => {
                 const html = document.documentElement;
                 const savedTheme = localStorage.getItem('trram-theme');
@@ -246,55 +275,73 @@
         };
 
         /** Applies the CRT Terminal style to the entire app. */
-        const TerminalWrapper = ({ children, isDarkMode, toggleDarkMode, userId, isEnvReady }) => (
-            <div className={`min-h-screen p-4 sm:p-8 flex flex-col items-center w-full transition-colors duration-500
-                ${isDarkMode 
-                    ? 'bg-[#000000] text-crt-green' 
-                    : 'bg-gray-100 text-gray-900'
-                }`}
-            >
-                {/* Screen Container with Retro Look */}
-                <div className={`w-full max-w-6xl p-4 sm:p-6 md:p-8 relative z-10 font-mono 
-                    ${isDarkMode
-                        ? 'border-4 border-crt-green shadow-[0_0_20px_#00ff00,inset_0_0_10px_#00ff00] bg-crt-dark'
-                        : 'border-4 border-gray-900 shadow-xl bg-white'
-                    } rounded-none overflow-hidden
-                `}>
-                    <header className={`mb-6 border-b-4 pb-3 flex justify-between items-start 
-                        ${isDarkMode ? 'border-crt-yellow' : 'border-gray-900'}`
-                    }>
-                        <div>
-                            <h1 className={`text-2xl sm:text-3xl font-bold uppercase cursor-blink flex items-center`}>
-                                <BotIcon className={`w-6 h-6 mr-2 mb-1 ${isDarkMode ? 'text-crt-yellow' : 'text-indigo-600'}`} />
-                                T.R.R.A.M. Bot 
-                            </h1>
-                            <p className={`text-sm ml-8 italic ${isDarkMode ? 'text-crt-yellow' : 'text-indigo-600'}`}>
-                                Autonomous Advisor System Activated
-                            </p>
-                        </div>
-                        <div className="flex flex-col items-end">
-                            <button 
-                                onClick={toggleDarkMode}
-                                className={`p-2 border-2 text-sm transition-colors 
-                                ${isDarkMode 
-                                    ? 'border-crt-green bg-[#004400] text-crt-green hover:bg-[#006600]' 
-                                    : 'border-gray-900 bg-gray-300 text-gray-900 hover:bg-gray-400'
-                                }
-                                `}
-                                title="Toggle Theme"
-                            >
-                                {isDarkMode ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
-                            </button>
-                            <p className={`mt-2 text-xs ${isDarkMode ? 'text-[#008800]' : 'text-gray-600'}`}>User ID: {userId ? userId.substring(0, 8) + '...' : (isEnvReady ? 'Anon' : 'Loading')}</p>
-                        </div>
-                    </header>
+        const TerminalWrapper = ({ children, isDarkMode, toggleDarkMode, userId, isEnvReady, onSignOut }) => {
+            const terminalAccent = isDarkMode ? 'text-crt-yellow' : 'text-indigo-600';
+            
+            return (
+                <div className={`min-h-screen p-4 sm:p-8 flex flex-col items-center w-full transition-colors duration-500
+                    ${isDarkMode 
+                        ? 'bg-[#000000] text-crt-green' 
+                        : 'bg-gray-100 text-gray-900'
+                    }`}
+                >
+                    {/* Screen Container with Retro Look */}
+                    <div className={`w-full max-w-6xl p-4 sm:p-6 md:p-8 relative z-10 font-mono 
+                        ${isDarkMode
+                            ? 'border-4 border-crt-green shadow-[0_0_20px_#00ff00,inset_0_0_10px_#00ff00] bg-crt-dark'
+                            : 'border-4 border-gray-900 shadow-xl bg-white'
+                        } rounded-none overflow-hidden
+                    `}>
+                        <header className={`mb-6 border-b-4 pb-3 flex justify-between items-start 
+                            ${isDarkMode ? 'border-crt-yellow' : 'border-gray-900'}`
+                        }>
+                            <div>
+                                <h1 className={`text-2xl sm:text-3xl font-bold uppercase cursor-blink flex items-center`}>
+                                    <BotIcon className={`w-6 h-6 mr-2 mb-1 ${isDarkMode ? 'text-crt-yellow' : 'text-indigo-600'}`} />
+                                    T.R.R.A.M. Bot 
+                                </h1>
+                                <p className={`text-sm ml-8 italic ${terminalAccent}`}>
+                                    Autonomous Advisor System Activated
+                                </p>
+                            </div>
+                            <div className="flex flex-col items-end">
+                                <div className="flex space-x-2">
+                                    {userId && (
+                                        <TerminalButton 
+                                            onClick={onSignOut}
+                                            isDarkMode={isDarkMode}
+                                            icon={LogOutIcon}
+                                            className="!px-3 !py-1 text-xs"
+                                        >
+                                            LOGOUT
+                                        </TerminalButton>
+                                    )}
+                                    <button 
+                                        onClick={toggleDarkMode}
+                                        className={`p-2 border-2 text-sm transition-colors 
+                                        ${isDarkMode 
+                                            ? 'border-crt-green bg-[#004400] text-crt-green hover:bg-[#006600]' 
+                                            : 'border-gray-900 bg-gray-300 text-gray-900 hover:bg-gray-400'
+                                        }
+                                        `}
+                                        title="Toggle Theme"
+                                    >
+                                        {/* FIXED: Using the defined SunIcon and MoonIcon */}
+                                        {isDarkMode ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
+                                    </button>
+                                </div>
+                                
+                                <p className={`mt-2 text-xs ${isDarkMode ? 'text-[#008800]' : 'text-gray-600'}`}>User ID: {userId ? userId.substring(0, 8) + '...' : (isEnvReady ? 'N/A' : 'Loading')}</p>
+                            </div>
+                        </header>
 
-                    <div className="crt text-sm sm:text-base">
-                        {children}
+                        <div className="crt text-sm sm:text-base">
+                            {children}
+                        </div>
                     </div>
                 </div>
-            </div>
-        );
+            );
+        };
 
         /** Generic button with retro styling */
         const TerminalButton = ({ children, onClick, disabled, icon: Icon, className = '', isDarkMode }) => (
@@ -313,7 +360,7 @@
             </button>
         );
 
-        /** Display for a single course item */
+        /** Display for a single course item (Unchanged) */
         const CourseItem = ({ course, onToggle, isDarkMode }) => (
             <div
                 className={`p-2 border-b flex justify-between items-center cursor-pointer transition duration-100 rounded-none
@@ -342,6 +389,115 @@
             </div>
         );
 
+        /** Component for Login/Sign Up */
+        const LoginScreen = ({ auth, onLoginSuccess, isDarkMode, authError }) => {
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [isSigningUp, setIsSigningUp] = useState(false);
+            const [loading, setLoading] = useState(false);
+            const [localError, setLocalError] = useState(null);
+
+            const terminalAccent = isDarkMode ? 'text-crt-yellow' : 'text-indigo-600';
+            const inputStyle = `w-full p-2 border-2 focus:ring-0 focus:outline-none rounded-none font-mono transition-colors 
+                ${isDarkMode 
+                    ? 'bg-[#111111] border-crt-green text-crt-green caret-crt-green placeholder-[#008800]' 
+                    : 'bg-white border-gray-900 text-gray-900 placeholder-gray-500'
+                }`;
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                setLocalError(null);
+                
+                if (!email || !password) {
+                    setLocalError("Email and Password are required.");
+                    setLoading(false);
+                    return;
+                }
+
+                try {
+                    if (isSigningUp) {
+                        await createUserWithEmailAndPassword(auth, email, password);
+                        console.log("User signed up successfully!");
+                    } else {
+                        await signInWithEmailAndPassword(auth, email, password);
+                        console.log("User signed in successfully!");
+                    }
+                    onLoginSuccess();
+                } catch (error) {
+                    console.error("Authentication Error:", error);
+                    let displayMessage = "Authentication failed. ";
+                    if (error.code) {
+                        displayMessage += error.code.replace('auth/', '').replace(/-/g, ' ');
+                    }
+                    setLocalError(displayMessage);
+                } finally {
+                    setLoading(false);
+                }
+            };
+            
+            const currentError = localError || authError;
+
+            return (
+                <div className="max-w-md mx-auto mt-10 p-6">
+                    <h2 className={`text-2xl font-bold mb-4 uppercase text-center ${terminalAccent}`}>
+                        {isSigningUp ? 'REGISTER NEW USER' : 'USER LOGIN'}
+                    </h2>
+                    
+                    {currentError && (
+                        <div className={`p-3 mb-4 border-2 rounded-none border-crt-red bg-[#440000] text-crt-red`}>
+                            <span className="font-bold">AUTH FAILURE:</span> <span>{currentError}</span>
+                        </div>
+                    )}
+
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div>
+                            <label className={`block text-sm font-bold mb-1 uppercase ${terminalAccent}`}>
+                                <MailIcon className="inline mr-2 w-4 h-4" /> Email
+                            </label>
+                            <input
+                                type="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                className={inputStyle}
+                                placeholder="user@rpi.edu"
+                                disabled={loading}
+                            />
+                        </div>
+                        <div>
+                            <label className={`block text-sm font-bold mb-1 uppercase ${terminalAccent}`}>
+                                <LockIcon className="inline mr-2 w-4 h-4" /> Password
+                            </label>
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className={inputStyle}
+                                placeholder="********"
+                                disabled={loading}
+                            />
+                        </div>
+                        
+                        <TerminalButton type="submit" disabled={loading} isDarkMode={isDarkMode} className="w-full">
+                            {loading 
+                                ? <><LoaderIcon className="w-4 h-4 animate-spin" /> {isSigningUp ? 'REGISTERING...' : 'SIGNING IN...'}</>
+                                : <>{isSigningUp ? 'SIGN UP' : 'SIGN IN'}</>
+                            }
+                        </TerminalButton>
+                    </form>
+
+                    <button
+                        onClick={() => setIsSigningUp(prev => !prev)}
+                        className={`w-full mt-4 text-xs uppercase underline transition-colors 
+                            ${isDarkMode ? 'text-crt-green hover:text-crt-yellow' : 'text-indigo-600 hover:text-indigo-800'}`}
+                        disabled={loading}
+                    >
+                        {isSigningUp ? 'Already have an account? Sign In' : 'Need an account? Sign Up'}
+                    </button>
+                </div>
+            );
+        };
+
 
         // --- Main Application Component ---
         const App = () => {
@@ -350,106 +506,134 @@
             const [loading, setLoading] = useState(false);
             const [error, setError] = useState(null);
             const [db, setDb] = useState(null);
+            const [auth, setAuth] = useState(null); // Store auth instance
             const [userId, setUserId] = useState(null);
+            const [isEmailUser, setIsEmailUser] = useState(false); 
             const [authReady, setAuthReady] = useState(false);
             const [isDarkMode, toggleDarkMode] = useDarkMode();
+            const [view, setView] = useState('planner'); // 'planner' or 'login'
             const documentId = 'default-plan'; 
 
             // --- Firebase Initialization and Authentication ---
             useEffect(() => {
-                // Only attempt initialization if the SDK is confirmed loaded
-                if (!isSDKLoaded) {
-                    setError("System Alert: Waiting for Firebase SDK to load...");
-                    return;
-                }
-                if (authReady) return; // Already initialized
+                if (!isSDKLoaded || authReady) return; 
 
                 try {
                     setLogLevel('debug');
                     
-                    // Critical check: Ensure config is not an empty object if we expect it
-                    if (Object.keys(firebaseConfig).length === 0) {
-                        console.warn("Firebase Config is empty. Proceeding with anonymous sign-in.");
-                    }
-
                     const app = initializeApp(firebaseConfig);
                     const authInstance = getAuth(app);
                     const dbInstance = getFirestore(app);
+                    
                     setDb(dbInstance);
+                    setAuth(authInstance);
 
                     const unsubscribe = onAuthStateChanged(authInstance, async (user) => {
                         if (user) {
                             setUserId(user.uid);
-                            console.log("Auth State: Signed in. User ID:", user.uid);
+                            // Check if the user is a persistent email/password user
+                            const isPersistent = user.email && user.providerData.some(p => p.providerId === 'password');
+                            setIsEmailUser(isPersistent);
+                            
+                            // If we have an email user, or a custom token user, proceed to planner
+                            if (isPersistent || initialAuthToken) {
+                                setView('planner');
+                            } else {
+                                // If it's an anonymous user, prompt for login/signup
+                                setView('login');
+                            }
+                            console.log(`Auth State: Signed in. User ID: ${user.uid}. Persistent: ${isPersistent}`);
+
                         } else {
-                            // If the initial token is present, try custom sign-in
+                            // No user signed in (e.g., after sign out)
+                            setUserId(null);
+                            setIsEmailUser(false);
+                            // Attempt initial sign-in for Canvas environment
                             if (initialAuthToken) {
                                 try {
                                     const userCredential = await signInWithCustomToken(authInstance, initialAuthToken);
-                                    setUserId(userCredential.user.uid);
+                                    // User is now signed in, the onAuthStateChanged listener will run again
+                                    return; 
                                 } catch (err) {
                                     console.warn("Custom Token Sign-In Failed:", err.message);
-                                    const userCredential = await signInAnonymously(authInstance);
-                                    setUserId(userCredential.user.uid);
+                                    // Fall through to anonymous sign-in if custom token fails
                                 }
-                            } else {
-                                // Fallback to anonymous sign-in
-                                const userCredential = await signInAnonymously(authInstance);
-                                setUserId(userCredential.user.uid);
                             }
+                            
+                            // Final fallback: sign in anonymously and set view to login screen
+                            const userCredential = await signInAnonymously(authInstance);
+                            setUserId(userCredential.user.uid);
+                            setView('login');
+                            console.log("Signed in anonymously.");
                         }
                         setAuthReady(true); 
-                        setError(null); // Clear any pending SDK load errors
+                        setError(null);
                     });
 
                     return () => unsubscribe();
                 } catch (err) {
                     console.error("Firebase Init Error:", err);
-                    // This is the source of the user's observed error.
                     setError("System Error: Could not initialize Firebase services. Check console for details.");
                     setAuthReady(true);
                 }
-            }, [initialAuthToken, authReady]); // Dependencies include authReady to ensure we only run once
+            }, [initialAuthToken, authReady]);
 
-            // --- Firestore Path Helper ---
+            // --- Sign Out Handler ---
+            const handleSignOut = async () => {
+                if (auth && signOut) {
+                    try {
+                        await signOut(auth);
+                        setPlan(null); // Clear plan data locally
+                        setView('login'); // Redirect to login screen
+                        setError(null);
+                    } catch (e) {
+                        console.error("Sign Out Error:", e);
+                        setError("Error: Failed to sign out.");
+                    }
+                }
+            };
+            
+            // --- Firestore Path Helper (Unchanged) ---
             const getPlanDocRef = useCallback(() => {
                 if (!db || !userId || !doc) return null;
                 // Private data path: /artifacts/{appId}/users/{userId}/course_plans/default-plan
                 return doc(db, 'artifacts', appId, 'users', userId, 'course_plans', documentId);
             }, [db, userId, appId, documentId]);
 
-            // --- Load Plan from Firestore (Real-time Listener) ---
+            // --- Load Plan from Firestore (Real-time Listener) (Unchanged logic, now dependent on userId) ---
             useEffect(() => {
                 const docRef = getPlanDocRef();
-                // Ensure authentication is complete and the doc reference is valid before attaching listener
-                if (!authReady || !docRef || !onSnapshot) return;
+                // ONLY proceed if auth is ready AND we have a userId
+                if (!authReady || !docRef || !onSnapshot || !userId) {
+                    setPlan(null); // Ensure plan is cleared if user logs out or switches
+                    return;
+                }
                 
                 const unsubscribe = onSnapshot(docRef, (docSnap) => {
                     if (docSnap.exists()) {
                         const data = docSnap.data();
                         setPrograms(data.programs || '');
                         setPlan(data.plan || null);
-                        console.log("Plan loaded from Firestore.");
+                        console.log("Plan loaded from Firestore for user:", userId);
                     } else {
-                        console.log("No existing plan found in Firestore.");
+                        console.log("No existing plan found in Firestore for user:", userId);
                         setPlan(null); 
                     }
                 }, (err) => {
                     console.error("Firestore onSnapshot error:", err);
-                    // Only set error if it's not the initial 'waiting for auth' state
                     if (authReady) { 
                         setError("Error: Failed to load plan data.");
                     }
                 });
 
                 return () => unsubscribe();
-            }, [authReady, getPlanDocRef]);
+            }, [authReady, getPlanDocRef, userId]);
 
-            // --- Save Plan to Firestore ---
+            // --- Save Plan to Firestore (Unchanged logic) ---
             const savePlan = useCallback(async (currentPlan = plan) => {
                 const docRef = getPlanDocRef();
                 if (!docRef || !currentPlan || !setDoc || !serverTimestamp) {
-                    setError("Error: Cannot save. Firebase connection missing or plan data is empty.");
+                    console.error("Save failed: Missing docRef or plan data.");
                     return;
                 }
                 
@@ -462,7 +646,7 @@
                         userId: userId,
                         updatedAt: serverTimestamp()
                     }, { merge: true });
-                    console.log("Plan saved successfully!");
+                    console.log("Plan saved successfully for user:", userId);
                 } catch (e) {
                     console.error("Error saving document: ", e);
                     setError("Error: Failed to save the plan. See console for permissions details.");
@@ -471,7 +655,7 @@
                 }
             }, [getPlanDocRef, plan, programs, userId]);
 
-            // --- Gemini API Call for Plan Generation ---
+            // --- Gemini API Call for Plan Generation (Unchanged) ---
             const fetchPlan = async () => {
                 if (!programs.trim()) {
                     setError("Please enter your RPI program(s) first (e.g., 'CS, Dual Math').");
@@ -537,7 +721,7 @@
                 setLoading(false);
             };
             
-            // --- Plan Modification Logic: Toggle Course Status ---
+            // --- Plan Modification Logic: Toggle Course Status (Unchanged logic) ---
             const toggleCourseCompletion = useCallback((courseToToggle) => {
                 setPlan(prevPlan => {
                     if (!prevPlan) return prevPlan;
@@ -555,7 +739,7 @@
                 });
             }, [savePlan]);
 
-            // --- Credit Calculations ---
+            // --- Credit Calculations (Unchanged) ---
             const { totalCredits, completedCredits } = useMemo(() => {
                 if (!plan) return { totalCredits: 0, completedCredits: 0 };
                 
@@ -576,10 +760,10 @@
             const errorColor = isDarkMode ? 'border-[#ff0000] bg-[#440000] text-[#ff0000]' : 'border-red-600 bg-red-100 text-red-800';
             const infoColor = isDarkMode ? 'border-crt-green bg-[#004400]' : 'border-green-600 bg-green-100';
 
-            // Check if environment is ready
+            // 1. Initial SDK Loading Screen
             if (!isSDKLoaded) {
                 return (
-                    <TerminalWrapper isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} userId={null} isEnvReady={false}>
+                    <TerminalWrapper isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} userId={null} isEnvReady={false} onSignOut={handleSignOut}>
                         <div className={`w-full text-center p-12 border-2 border-dashed rounded-none mt-10 
                             ${isDarkMode ? 'border-crt-green text-crt-green' : 'border-gray-500 text-gray-600'}`}>
                             <LoaderIcon className={`w-10 h-10 mx-auto mb-4 animate-spin ${terminalAccent}`} />
@@ -590,9 +774,26 @@
                 );
             }
 
+            // 2. Authentication Screen
+            if (view === 'login' && auth) {
+                return (
+                    <TerminalWrapper isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} userId={userId} isEnvReady={authReady} onSignOut={handleSignOut}>
+                        <LoginScreen 
+                            auth={auth} 
+                            onLoginSuccess={() => setView('planner')} 
+                            isDarkMode={isDarkMode}
+                            authError={error}
+                        />
+                         <p className={`text-center mt-8 text-xs italic ${isDarkMode ? 'text-[#008800]' : 'text-gray-500'}`}>
+                             Note: If you are seeing this screen, you are currently signed in anonymously (ID: {userId ? userId.substring(0, 8) + '...' : 'N/A'}). Register or Sign In to save your data persistently.
+                         </p>
+                    </TerminalWrapper>
+                );
+            }
 
+            // 3. Main Planner Screen
             return (
-                <TerminalWrapper isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} userId={userId} isEnvReady={authReady}>
+                <TerminalWrapper isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} userId={userId} isEnvReady={authReady} onSignOut={handleSignOut}>
                     
                     {/* Input Section (Bot Command Line) */}
                     <div className="w-full mb-6">
@@ -711,6 +912,9 @@
                             <BotIcon className={`w-10 h-10 mx-auto mb-4 animate-pulse ${terminalAccent}`} />
                             <p className="text-lg uppercase">INITIALIZED. T.R.R.A.M. AWAITS COMMANDS.</p>
                             <p className="text-sm mt-2">Enter your program(s) above and click 'Run Plan' to start course generation.</p>
+                            <p className="text-sm mt-4 italic">
+                                Since you are logged in, any data you generate will be saved to your current user ID.
+                            </p>
                         </div>
                     )}
                 </TerminalWrapper>
