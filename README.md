@@ -1,4 +1,4 @@
-# TRRAM: The Retro Registering Autonomous Manifesto
+# TRRAM: The Retro Registration Autonomous Manifesto
 
 ## hackrpi2025
 
