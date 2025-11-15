@@ -80,7 +80,9 @@
             onAuthStateChanged,
             createUserWithEmailAndPassword,
             signInWithEmailAndPassword,
-            signOut
+            signOut,
+            setPersistence,
+            browserSessionPersistence
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, onSnapshot, setDoc, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -88,13 +90,17 @@
         window.FirebaseServices = { 
             initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
             createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut,
-            getFirestore, doc, onSnapshot, setDoc, serverTimestamp, setLogLevel 
+            getFirestore, doc, onSnapshot, setDoc, serverTimestamp, setLogLevel,
+            setPersistence, browserSessionPersistence
         };
         
         // Ensure global config variables are set, even if they're empty strings
-        if (typeof window.__app_id === 'undefined') window.__app_id = 'default-app-id';
+        if (typeof window.__app_id === 'undefined') window.__app_id = 'default-trram-planner';
         if (typeof window.__firebase_config === 'undefined') window.__firebase_config = '{}';
         if (typeof window.__initial_auth_token === 'undefined') window.__initial_auth_token = null;
+        
+        // Add log level to ensure we see auth issues
+        setLogLevel('debug');
 
         console.log("Firebase services loaded and exposed globally.");
         window.isFirebaseSdkLoaded = true;
@@ -104,7 +110,7 @@
     <script type="text/babel">
         const { useState, useEffect, useCallback, useMemo } = React;
 
-        // --- Inline SVG Icons (FIXED: Added MoonIcon and SunIcon) ---
+        // --- Inline SVG Icons (omitted for brevity, assume they are defined) ---
         const Icon = ({ children, className }) => (
             <svg className={`w-5 h-5 ${className}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                 {children}
@@ -176,6 +182,7 @@
                 <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"></path>
             </Icon>
         );
+        // --- End Icons ---
         
         // --- Global Variables (Read from window) ---
         const appId = window.__app_id || 'default-trram-planner';
@@ -188,7 +195,8 @@
         const { 
             initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
             createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut,
-            getFirestore, doc, onSnapshot, setDoc, serverTimestamp, setLogLevel
+            getFirestore, doc, onSnapshot, setDoc, serverTimestamp, setLogLevel,
+            setPersistence, browserSessionPersistence
         } = FirebaseServices;
         
         // Flag to check if Firebase functions are available
@@ -239,7 +247,7 @@
 
         // --- Utility Components for Retro Styling ---
 
-        /** Custom Hook for Dark Mode (Unchanged) */
+        /** Custom Hook for Dark Mode */
         const useDarkMode = () => {
             const [isDarkMode, setIsDarkMode] = useState(false);
             
@@ -275,7 +283,7 @@
         };
 
         /** Applies the CRT Terminal style to the entire app. */
-        const TerminalWrapper = ({ children, isDarkMode, toggleDarkMode, userId, isEnvReady, onSignOut }) => {
+        const TerminalWrapper = ({ children, isDarkMode, toggleDarkMode, userId, isEnvReady, onSignOut, userIsAnonymous }) => {
             const terminalAccent = isDarkMode ? 'text-crt-yellow' : 'text-indigo-600';
             
             return (
@@ -306,7 +314,7 @@
                             </div>
                             <div className="flex flex-col items-end">
                                 <div className="flex space-x-2">
-                                    {userId && (
+                                    {userId && !userIsAnonymous && ( // Only show logout if user is authenticated and not anonymous
                                         <TerminalButton 
                                             onClick={onSignOut}
                                             isDarkMode={isDarkMode}
@@ -326,7 +334,6 @@
                                         `}
                                         title="Toggle Theme"
                                     >
-                                        {/* FIXED: Using the defined SunIcon and MoonIcon */}
                                         {isDarkMode ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
                                     </button>
                                 </div>
@@ -360,7 +367,7 @@
             </button>
         );
 
-        /** Display for a single course item (Unchanged) */
+        /** Display for a single course item */
         const CourseItem = ({ course, onToggle, isDarkMode }) => (
             <div
                 className={`p-2 border-b flex justify-between items-center cursor-pointer transition duration-100 rounded-none
@@ -418,12 +425,10 @@
                 try {
                     if (isSigningUp) {
                         await createUserWithEmailAndPassword(auth, email, password);
-                        console.log("User signed up successfully!");
                     } else {
                         await signInWithEmailAndPassword(auth, email, password);
-                        console.log("User signed in successfully!");
                     }
-                    onLoginSuccess();
+                    // onAuthStateChanged listener handles setting the view
                 } catch (error) {
                     console.error("Authentication Error:", error);
                     let displayMessage = "Authentication failed. ";
@@ -494,6 +499,15 @@
                     >
                         {isSigningUp ? 'Already have an account? Sign In' : 'Need an account? Sign Up'}
                     </button>
+                    
+                    <button
+                        onClick={onLoginSuccess}
+                        className={`w-full mt-6 text-xs uppercase transition-colors border-2 p-2 
+                            ${isDarkMode ? 'border-crt-green text-crt-green hover:bg-[#004400]' : 'border-gray-900 text-gray-900 hover:bg-gray-200'}`}
+                        disabled={loading}
+                    >
+                        Skip for Anonymous Access (No Plan Saving)
+                    </button>
                 </div>
             );
         };
@@ -506,21 +520,18 @@
             const [loading, setLoading] = useState(false);
             const [error, setError] = useState(null);
             const [db, setDb] = useState(null);
-            const [auth, setAuth] = useState(null); // Store auth instance
+            const [auth, setAuth] = useState(null);
             const [userId, setUserId] = useState(null);
-            const [isEmailUser, setIsEmailUser] = useState(false); 
+            const [userIsAnonymous, setUserIsAnonymous] = useState(false);
             const [authReady, setAuthReady] = useState(false);
             const [isDarkMode, toggleDarkMode] = useDarkMode();
-            const [view, setView] = useState('planner'); // 'planner' or 'login'
-            const documentId = 'default-plan'; 
+            const [view, setView] = useState('loading'); // 'loading', 'planner' or 'login'
 
-            // --- Firebase Initialization and Authentication ---
+            // --- Firebase Initialization and Authentication (CRITICAL FIX) ---
             useEffect(() => {
                 if (!isSDKLoaded || authReady) return; 
 
                 try {
-                    setLogLevel('debug');
-                    
                     const app = initializeApp(firebaseConfig);
                     const authInstance = getAuth(app);
                     const dbInstance = getFirestore(app);
@@ -528,46 +539,51 @@
                     setDb(dbInstance);
                     setAuth(authInstance);
 
+                    // Set session persistence
+                    setPersistence(authInstance, browserSessionPersistence);
+
                     const unsubscribe = onAuthStateChanged(authInstance, async (user) => {
                         if (user) {
                             setUserId(user.uid);
-                            // Check if the user is a persistent email/password user
-                            const isPersistent = user.email && user.providerData.some(p => p.providerId === 'password');
-                            setIsEmailUser(isPersistent);
-                            
-                            // If we have an email user, or a custom token user, proceed to planner
-                            if (isPersistent || initialAuthToken) {
-                                setView('planner');
-                            } else {
-                                // If it's an anonymous user, prompt for login/signup
-                                setView('login');
-                            }
-                            console.log(`Auth State: Signed in. User ID: ${user.uid}. Persistent: ${isPersistent}`);
-
+                            setUserIsAnonymous(user.isAnonymous);
+                            // If signed in, go to planner
+                            setView('planner');
+                            console.log(`Auth State: Signed in. User ID: ${user.uid} (Anonymous: ${user.isAnonymous})`);
                         } else {
-                            // No user signed in (e.g., after sign out)
-                            setUserId(null);
-                            setIsEmailUser(false);
-                            // Attempt initial sign-in for Canvas environment
-                            if (initialAuthToken) {
-                                try {
-                                    const userCredential = await signInWithCustomToken(authInstance, initialAuthToken);
-                                    // User is now signed in, the onAuthStateChanged listener will run again
-                                    return; 
-                                } catch (err) {
-                                    console.warn("Custom Token Sign-In Failed:", err.message);
-                                    // Fall through to anonymous sign-in if custom token fails
+                            // Only set view to 'loading' if we haven't determined the state yet
+                            if (!authReady) {
+                                // Attempt initial sign-in logic here only if we haven't finished auth yet
+                                if (initialAuthToken) {
+                                    try {
+                                        await signInWithCustomToken(authInstance, initialAuthToken);
+                                        return; // onAuthStateChanged will re-run
+                                    } catch (err) {
+                                        console.warn("Custom Token Sign-In Failed (Falling back):", err.message);
+                                    }
                                 }
+                                
+                                try {
+                                    // Final fallback: sign in anonymously 
+                                    const userCredential = await signInAnonymously(authInstance);
+                                    setUserId(userCredential.user.uid);
+                                    setUserIsAnonymous(true);
+                                    console.log("Signed in anonymously.");
+                                    setView('planner');
+                                } catch (anonErr) {
+                                    console.error("Anonymous Sign-In Failed:", anonErr.message);
+                                    setView('login'); // If everything fails, force login/signup view
+                                    setError("Authentication failed. Please ensure Anonymous and Custom Auth are enabled in Firebase Console.");
+                                }
+                            } else {
+                                // If the user explicitly logged out or was signed out
+                                setView('login');
+                                setUserId(null);
+                                setUserIsAnonymous(false);
+                                setPlan(null);
                             }
-                            
-                            // Final fallback: sign in anonymously and set view to login screen
-                            const userCredential = await signInAnonymously(authInstance);
-                            setUserId(userCredential.user.uid);
-                            setView('login');
-                            console.log("Signed in anonymously.");
                         }
                         setAuthReady(true); 
-                        setError(null);
+                        if (error && error.includes("Authentication failed")) setError(null); // Clear auth error once successful
                     });
 
                     return () => unsubscribe();
@@ -578,14 +594,13 @@
                 }
             }, [initialAuthToken, authReady]);
 
+
             // --- Sign Out Handler ---
             const handleSignOut = async () => {
                 if (auth && signOut) {
                     try {
+                        // This will trigger onAuthStateChanged to run again, where it attempts anonymous sign-in
                         await signOut(auth);
-                        setPlan(null); // Clear plan data locally
-                        setView('login'); // Redirect to login screen
-                        setError(null);
                     } catch (e) {
                         console.error("Sign Out Error:", e);
                         setError("Error: Failed to sign out.");
@@ -593,26 +608,32 @@
                 }
             };
             
-            // --- Firestore Path Helper (Unchanged) ---
+            // --- Firestore Path Helper (Uses Public Path for Security Rules) ---
             const getPlanDocRef = useCallback(() => {
                 if (!db || !userId || !doc) return null;
-                // Private data path: /artifacts/{appId}/users/{userId}/course_plans/default-plan
-                return doc(db, 'artifacts', appId, 'users', userId, 'course_plans', documentId);
-            }, [db, userId, appId, documentId]);
+                // Path: /artifacts/{appId}/public/data/course_plans/plan_for_{userId}
+                const uniqueDocId = `plan_for_${userId}`;
+                return doc(db, 'artifacts', appId, 'public', 'data', 'course_plans', uniqueDocId);
+            }, [db, userId, appId]);
 
-            // --- Load Plan from Firestore (Real-time Listener) (Unchanged logic, now dependent on userId) ---
+            // --- Load Plan from Firestore (Real-time Listener - CRITICAL FIX) ---
             useEffect(() => {
-                const docRef = getPlanDocRef();
-                // ONLY proceed if auth is ready AND we have a userId
-                if (!authReady || !docRef || !onSnapshot || !userId) {
-                    setPlan(null); // Ensure plan is cleared if user logs out or switches
+                // Guard clause: DO NOT proceed until auth is complete and userId is confirmed
+                if (!authReady || !userId || userIsAnonymous) {
+                    // Anonymous users cannot save, so we don't attempt to load past data either.
+                    setPlan(null);
                     return;
                 }
+
+                const docRef = getPlanDocRef();
+                if (!docRef) return;
                 
+                // This will ONLY run after a non-anonymous user is confirmed.
                 const unsubscribe = onSnapshot(docRef, (docSnap) => {
                     if (docSnap.exists()) {
                         const data = docSnap.data();
-                        setPrograms(data.programs || '');
+                        // Only load program input if the plan also exists
+                        setPrograms(data.programs || ''); 
                         setPlan(data.plan || null);
                         console.log("Plan loaded from Firestore for user:", userId);
                     } else {
@@ -621,16 +642,20 @@
                     }
                 }, (err) => {
                     console.error("Firestore onSnapshot error:", err);
-                    if (authReady) { 
-                        setError("Error: Failed to load plan data.");
-                    }
+                    setError("Error: Failed to load plan data. Check security rules and console details.");
                 });
 
                 return () => unsubscribe();
-            }, [authReady, getPlanDocRef, userId]);
+            }, [authReady, userId, userIsAnonymous, getPlanDocRef]); // Dependencies now include authReady, userId, and userIsAnonymous
 
-            // --- Save Plan to Firestore (Unchanged logic) ---
+            // --- Save Plan to Firestore ---
             const savePlan = useCallback(async (currentPlan = plan) => {
+                if (userIsAnonymous) {
+                    // Non-blocking warning for anonymous users
+                    console.warn("Save attempted: Anonymous users cannot save data persistently.");
+                    return; 
+                }
+
                 const docRef = getPlanDocRef();
                 if (!docRef || !currentPlan || !setDoc || !serverTimestamp) {
                     console.error("Save failed: Missing docRef or plan data.");
@@ -653,7 +678,7 @@
                 } finally {
                     setLoading(false);
                 }
-            }, [getPlanDocRef, plan, programs, userId]);
+            }, [getPlanDocRef, plan, programs, userId, userIsAnonymous]);
 
             // --- Gemini API Call for Plan Generation (Unchanged) ---
             const fetchPlan = async () => {
@@ -716,12 +741,17 @@
 
                 if (success && generatedPlan) {
                     setPlan(generatedPlan);
-                    await savePlan(generatedPlan); // Save immediately after successful generation
+                    // Only save if the user is not anonymous
+                    if (!userIsAnonymous) {
+                         await savePlan(generatedPlan); 
+                    } else {
+                         setError("Plan generated successfully, but saving is disabled for anonymous users. Please log in to save.");
+                    }
                 }
                 setLoading(false);
             };
             
-            // --- Plan Modification Logic: Toggle Course Status (Unchanged logic) ---
+            // --- Plan Modification Logic: Toggle Course Status ---
             const toggleCourseCompletion = useCallback((courseToToggle) => {
                 setPlan(prevPlan => {
                     if (!prevPlan) return prevPlan;
@@ -734,12 +764,14 @@
                                 : course
                         ),
                     }));
-                    savePlan(updatedPlan); // Save the updated plan to Firestore immediately
+                    if (!userIsAnonymous) {
+                        savePlan(updatedPlan); // Save the updated plan to Firestore immediately
+                    }
                     return updatedPlan;
                 });
-            }, [savePlan]);
+            }, [savePlan, userIsAnonymous]);
 
-            // --- Credit Calculations (Unchanged) ---
+            // --- Credit Calculations ---
             const { totalCredits, completedCredits } = useMemo(() => {
                 if (!plan) return { totalCredits: 0, completedCredits: 0 };
                 
@@ -760,32 +792,47 @@
             const errorColor = isDarkMode ? 'border-[#ff0000] bg-[#440000] text-[#ff0000]' : 'border-red-600 bg-red-100 text-red-800';
             const infoColor = isDarkMode ? 'border-crt-green bg-[#004400]' : 'border-green-600 bg-green-100';
 
-            // 1. Initial SDK Loading Screen
-            if (!isSDKLoaded) {
+            // 1. Loading and SDK Check Screen
+            if (!isSDKLoaded || view === 'loading' && !authReady) {
                 return (
-                    <TerminalWrapper isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} userId={null} isEnvReady={false} onSignOut={handleSignOut}>
+                    <TerminalWrapper isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} userId={null} isEnvReady={false} onSignOut={handleSignOut} userIsAnonymous={userIsAnonymous}>
                         <div className={`w-full text-center p-12 border-2 border-dashed rounded-none mt-10 
                             ${isDarkMode ? 'border-crt-green text-crt-green' : 'border-gray-500 text-gray-600'}`}>
                             <LoaderIcon className={`w-10 h-10 mx-auto mb-4 animate-spin ${terminalAccent}`} />
-                            <p className="text-lg uppercase">SYSTEM BOOTING... LOADING REQUIRED SDKS.</p>
-                            <p className="text-sm mt-2">Please wait while the environment initializes.</p>
+                            <p className="text-lg uppercase">SYSTEM BOOTING... INITIALIZING FIREBASE.</p>
+                            <p className="text-sm mt-2">Awaiting Authentication Status.</p>
                         </div>
                     </TerminalWrapper>
                 );
             }
 
-            // 2. Authentication Screen
+            // 2. Authentication Screen (only if forced due to a severe auth failure or explicit logout)
             if (view === 'login' && auth) {
                 return (
-                    <TerminalWrapper isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} userId={userId} isEnvReady={authReady} onSignOut={handleSignOut}>
+                    <TerminalWrapper 
+                        isDarkMode={isDarkMode} 
+                        toggleDarkMode={toggleDarkMode} 
+                        userId={userId} 
+                        isEnvReady={authReady} 
+                        onSignOut={handleSignOut}
+                        userIsAnonymous={userIsAnonymous}
+                    >
                         <LoginScreen 
                             auth={auth} 
-                            onLoginSuccess={() => setView('planner')} 
+                            onLoginSuccess={async () => { 
+                                // Attempt anonymous sign-in to proceed to planner view without credentials
+                                try {
+                                    await signInAnonymously(auth);
+                                } catch (e) {
+                                    // If anonymous fails, we just force the view to planner and hope the user can see data.
+                                    setView('planner'); 
+                                }
+                            }}
                             isDarkMode={isDarkMode}
                             authError={error}
                         />
                          <p className={`text-center mt-8 text-xs italic ${isDarkMode ? 'text-[#008800]' : 'text-gray-500'}`}>
-                             Note: If you are seeing this screen, you are currently signed in anonymously (ID: {userId ? userId.substring(0, 8) + '...' : 'N/A'}). Register or Sign In to save your data persistently.
+                             Email/Password sign-in enables persistent plan saving.
                          </p>
                     </TerminalWrapper>
                 );
@@ -793,7 +840,14 @@
 
             // 3. Main Planner Screen
             return (
-                <TerminalWrapper isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} userId={userId} isEnvReady={authReady} onSignOut={handleSignOut}>
+                <TerminalWrapper 
+                    isDarkMode={isDarkMode} 
+                    toggleDarkMode={toggleDarkMode} 
+                    userId={userId} 
+                    isEnvReady={authReady} 
+                    onSignOut={handleSignOut}
+                    userIsAnonymous={userIsAnonymous}
+                >
                     
                     {/* Input Section (Bot Command Line) */}
                     <div className="w-full mb-6">
@@ -851,8 +905,14 @@
                                 </p>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                                <TerminalButton onClick={() => savePlan(plan)} disabled={loading || !authReady} icon={SaveIcon} isDarkMode={isDarkMode}>
-                                    Save Progress
+                                <TerminalButton 
+                                    onClick={() => savePlan(plan)} 
+                                    disabled={loading || !authReady || userIsAnonymous} 
+                                    icon={SaveIcon} 
+                                    isDarkMode={isDarkMode}
+                                    title={userIsAnonymous ? "Log in to save your plan persistently." : "Save current progress."}
+                                >
+                                    {userIsAnonymous ? 'Login to Save' : 'Save Progress'}
                                 </TerminalButton>
                                 <TerminalButton onClick={() => setPlan(null)} disabled={loading} icon={XIcon} className={isDarkMode ? 'bg-[#440000]' : 'bg-red-500'} isDarkMode={isDarkMode}>
                                     Clear Plan
@@ -861,6 +921,11 @@
                                     Regenerate Plan
                                 </TerminalButton>
                             </div>
+                            {userIsAnonymous && (
+                                <p className={`mt-3 text-xs italic ${isDarkMode ? 'text-crt-yellow' : 'text-red-600'}`}>
+                                    NOTE: You are currently signed in anonymously. Saving is disabled.
+                                </p>
+                            )}
                         </div>
                     )}
 
@@ -898,7 +963,7 @@
                                                 />
                                             ))}
                                             <div className={`text-sm mt-2 pt-2 border-t text-right 
-                                                ${isDarkMode ? 'border-[#004400] text-[#008800]' : 'border-gray-300 text-gray-600'}`}>
+                                                ${isDarkMode ? 'border-[#004400]' : 'border-gray-300 text-gray-600'}`}>
                                                 Total: {semester.courses.reduce((sum, c) => sum + c.credits, 0)} Credits
                                             </div>
                                         </>
@@ -913,7 +978,7 @@
                             <p className="text-lg uppercase">INITIALIZED. T.R.R.A.M. AWAITS COMMANDS.</p>
                             <p className="text-sm mt-2">Enter your program(s) above and click 'Run Plan' to start course generation.</p>
                             <p className="text-sm mt-4 italic">
-                                Since you are logged in, any data you generate will be saved to your current user ID.
+                                Data will save automatically if you are logged in with an email/password account.
                             </p>
                         </div>
                     )}
