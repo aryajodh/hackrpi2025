@@ -62,7 +62,7 @@ def load_latest_rpi_catalog():
         print(f"[{i+1}/{len(catalog_urls)}] Loading program data from: {url.split('poid=')[-1]}...")
         
         try:
-            # Merge_from_url fetches the page, parses its headings/lists, and updates catalog.programs
+            # merge_from_url fetches the page, parses its content blocks, and updates catalog.programs
             master_catalog.merge_from_url(url) 
             time.sleep(1) # Be polite with server requests
             
@@ -90,45 +90,43 @@ if __name__ == '__main__':
         for program_name, program_data in catalog.programs.items():
             
             required_courses_enriched = {}
-            elective_sections_list = []
             
-            for detail in program_data.get('details', []):
+            # The parsing feature is now designed to return a cleaned list of elective sections
+            elective_sections_list = program_data.get('elective_and_track_details', [])
+            
+            # 1. Collect and ENRICH required courses (Subject Codes)
+            # The parsing feature has already extracted the codes and heuristic credits into this list
+            for course_ref in program_data.get('required_course_codes', []): 
+                code = course_ref['code']
                 
-                # 1. Collect and ENRICH required courses (Subject Codes)
-                for course_ref in detail.get('courses', []):
-                    code = course_ref['code']
-                    if code not in required_courses_enriched:
-                        
-                        # Cross-reference with the master course database
-                        course_info = detailed_courses_db.get(code, {
-                            'Code': code,
-                            'Name': '[Name Not Found]',
-                            'Credits': course_ref.get('credits', 'N/A'),
-                            'Prerequisites': '[Details Not Found]',
-                            'Offered': '[Details Not Found]'
-                        })
-                        
-                        # Store the simplified, enriched structure
-                        required_courses_enriched[code] = {
-                            'Code': course_info['Code'],
-                            'Name': course_info['Name'],
-                            'Credits': course_info['Credits'],
-                            'Prerequisites': str(course_info.get('Prerequisites', '[Details Not Found]')), 
-                            'Description': str(course_info.get('Description', '[Details Not Found]'))
-                        }
-                
-                # 2. Collect information specifically flagged as elective tracks/sections
-                if detail.get('is_elective_section'):
-                    # Save the raw header and text for detailed review
-                    elective_sections_list.append({
-                        'section_header': detail['header'],
-                        'section_text': detail['text']
+                if code not in required_courses_enriched:
+                    
+                    # Cross-reference with the master course database (rpi_courses.json)
+                    # We prioritize detailed info from the master list, falling back to scraped info if necessary
+                    course_info = detailed_courses_db.get(code, {
+                        'Code': code,
+                        'Name': '[Name Not Found]',
+                        'Credits': course_ref.get('credits', 'N/A'), # Use heuristic credit from parsing feature
+                        'Prerequisites': '[Details Not Found]',
+                        'Offered': '[Details Not Found]',
+                        'Description': '[Details Not Found]'
                     })
-
+                    
+                    # Store the simplified, enriched structure
+                    required_courses_enriched[code] = {
+                        'Code': course_info['Code'],
+                        'Name': course_info['Name'],
+                        # Use the Credits field from the master list for accuracy, which is loaded above.
+                        'Credits': course_info['Credits'], 
+                        'Prerequisites': str(course_info.get('Prerequisites', '[Details Not Found]')), 
+                        'Description': str(course_info.get('Description', '[Details Not Found]'))
+                    }
+            
             # Compile the final structured output for this program
             program_output = {
                 'program_name': program_name,
-                'total_estimated_credits': program_data.get('credit_hours', 'N/A'),
+                # The parsing feature has provided the estimated credits
+                'total_estimated_credits': program_data.get('total_estimated_credits', 'N/A'), 
                 'required_courses': sorted(required_courses_enriched.values(), key=lambda x: x['Code']),
                 'elective_and_track_details': elective_sections_list
             }
