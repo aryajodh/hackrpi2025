@@ -63,10 +63,12 @@ def parse_rpi_course_catalog(base_url, num_pages=1):
         
         print(f"Found {len(course_blocks)} course blocks (<li>) on page {page}.")
             
-        # Define field separators globally to simplify description detection
+        # Define field separators globally and include the most generic corequisite patterns
+        # FIX: Ensure all Prerequisite/Corequisite patterns are included here.
         FIELD_LABELS = [
             '|When Offered:', '|Credit Hours:', '|Graded:', 
-            '|Prerequisite(s):', '|Corequisite(s):', '|Prerequisite or Corequisite:', '|Corequisite:'
+            '|Prerequisite(s):', '|Corequisite(s):', '|Prerequisite or Corequisite:', 
+            '|Corequisite:', '|Prerequisite:' # Added generic 'Prerequisite:' for robustness
         ]
 
         for block in course_blocks:
@@ -84,54 +86,45 @@ def parse_rpi_course_catalog(base_url, num_pages=1):
             
             # 1. --- CODE, NAME, AND DESCRIPTION EXTRACTION ---
             
-            # Match the header and the text that follows
             match_header = re.match(r'([A-Z]{3,4}\s\d{4}[A-Z]?)\s*-\s*(.*)', block_text)
             
             if match_header:
                 course['Code'] = match_header.group(1).strip()
                 
-                # Full raw text following the dash and code
                 remaining_text = match_header.group(2).strip()
                 
-                # Isolate Name: Must stop at the first pipe delimiter (|)
                 name_and_description_text = remaining_text
                 
-                # Split the remaining text into Name and the rest
                 if '|' in name_and_description_text:
                     name_part, description_and_fields = name_and_description_text.split('|', 1)
                 else:
-                    # Case where only Name exists or structure is invalid
                     name_part = name_and_description_text
-                    description_and_fields = "" # Nothing left for description/fields
+                    description_and_fields = ""
                 
-                # FIX 1: Name is strictly the part before the first pipe
                 course['Name'] = name_part.strip().replace('|', ' ')
 
-                # FIX 2 & 3: Extract Description reliably, handling missing descriptions.
                 description_text = ""
                 
                 if description_and_fields:
-                    # Find the index of the earliest field label in the description_and_fields block
+                    # FIX: Search for the index of the earliest field label in the remaining text
                     field_indices = [
                         description_and_fields.find(label) 
                         for label in FIELD_LABELS 
                         if description_and_fields.find(label) != -1
                     ]
                     
-                    # The earliest non-negative index is where the description must stop
                     earliest_field_index = min(field_indices) if field_indices else len(description_and_fields)
                     
+                    # Description is the text up to this earliest delimiter
                     description_text = description_and_fields[:earliest_field_index].strip()
                     
                 
                 if description_text:
-                    # Clean up internal pipes, which represent soft breaks
                     course['Description'] = description_text.replace('|', ' ')
                 else:
-                    # This ensures that if the description is truly missing or empty, it defaults correctly
                     course['Description'] = 'N/A'
                     
-            # 2. --- FIELD EXTRACTION using SUBSTRING SEARCHING (Remains Robust) ---
+            # 2. --- FIELD EXTRACTION using SUBSTRING SEARCHING (Reliable for Specific Fields) ---
 
             # A. Offered
             offered_value = extract_field_value(block_text, "|When Offered:|")
@@ -145,6 +138,7 @@ def parse_rpi_course_catalog(base_url, num_pages=1):
             
             # C. Prerequisites/Corequisites 
             
+            # Prioritize specific Prerequisite labels
             prereq_value = extract_field_value(block_text, "|Prerequisite(s):|")
             if prereq_value:
                 course['Prerequisites'] = prereq_value
@@ -152,12 +146,19 @@ def parse_rpi_course_catalog(base_url, num_pages=1):
                 prereq_value = extract_field_value(block_text, "|Prerequisite or Corequisite:|")
                 if prereq_value:
                     course['Prerequisites'] = "OR/COMBINED: " + prereq_value
+                else:
+                    # Fallback check for the generic "Prerequisite" label
+                    prereq_value = extract_field_value(block_text, "|Prerequisite:|")
+                    if prereq_value:
+                        course['Prerequisites'] = prereq_value
+
 
             # D. Corequisites
             coreq_value = extract_field_value(block_text, "|Corequisite(s):|")
             if coreq_value:
                 course['Corequisites'] = coreq_value
             else:
+                # Fallback check for the generic "Corequisite" label
                 coreq_value = extract_field_value(block_text, "|Corequisite:|")
                 if coreq_value:
                     course['Corequisites'] = coreq_value
@@ -173,7 +174,7 @@ data = parse_rpi_course_catalog(BASE_CATALOG_URL, num_pages=PAGES_TO_PARSE)
 
 # --- Output the Results ---
 if data:
-    print("\n--- SUCCESSFULLY PARSED COURSE DATA (ALL FIELDS ACCOUNTED FOR) ---")
+    print("\n--- SUCCESSFULLY PARSED COURSE DATA (FINAL CHECK) ---")
     print(f"Total courses found: {len(data)}")
     
     print(json.dumps(data[:5], indent=4))
