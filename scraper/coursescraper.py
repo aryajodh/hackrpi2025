@@ -1,66 +1,75 @@
-# Import the necessary modules from your fixed library structure
-from rpi_courses.web import list_sis_files
-from rpi_courses.parser.course_catalog import CourseCatalog
+# Assuming this is your main entry point (e.g., coursescraper.py)
+
+import time 
+import sys
+# Ensure imports work regardless of module structure
+try:
+    from rpi_courses.web import list_catalog_urls
+    from rpi_courses.parser.course_catalog import CourseCatalog
+except ImportError:
+    print("FATAL ERROR: Could not import rpi_courses modules. Check your directory structure and PYTHONPATH.")
+    sys.exit(1)
+
 
 def load_latest_rpi_catalog():
     """
-    Fetches the URL for the latest SIS course catalog file and loads it 
-    into a CourseCatalog object.
+    Fetches the URLs for the modern catalog, loads them incrementally, 
+    and returns a single CourseCatalog object.
     """
     print("--- Starting RPI Course Catalog Initialization ---")
     
-    # 1. Get the list of available SIS file URLs
+    # 1. Get the list of available catalog URLs
     try:
-        # This calls the list_sis_files function you converted
-        sis_files = list_sis_files()
+        catalog_urls = list_catalog_urls()
     except Exception as e:
-        print(f"Error fetching SIS file URLs. Ensure 'list_sis_files' and 'get' in web.py are fixed. Error: {e}")
+        print(f"❌ Error fetching catalog URLs: {e}")
         return None
 
-    if not sis_files:
-        print("Failed to retrieve any SIS catalog URLs.")
+    if not catalog_urls:
+        print("❌ Failed to retrieve any catalog URLs. Check web.py or if the site is blocking.")
         return None
 
-    # 2. Identify the latest catalog URL
-    # Assumes the latest (most recent) file is at the end of the list
-    latest_catalog_url = sis_files[-1] 
-    print(f"\nFound {len(sis_files)} catalog URLs.")
-    print(f"Loading latest catalog from: {latest_catalog_url}")
+    # 2. Initialize the master CourseCatalog object
+    master_catalog = CourseCatalog() 
     
-    # 3. Instantiate and load the catalog
-    try:
-        # This calls CourseCatalog.from_url, which uses get() from web.py
-        # This loads and parses the data using all your fixed feature functions.
-        course_catalog = CourseCatalog.from_url(latest_catalog_url)
+    print(f"\nFound {len(catalog_urls)} department course pages to scrape.")
+    
+    # 3. Iterate through each department URL and load programs incrementally
+    for i, url in enumerate(catalog_urls):
+        dept_info = url.split('&')[-1] 
+        print(f"[{i+1}/{len(catalog_urls)}] Loading data from {dept_info}...")
         
-        print("\n✅ Catalog Initialization Successful!")
-        print(f"Catalog Name: {course_catalog.name}")
-        print(f"Total Courses Loaded: {len(course_catalog.courses)}")
-        
-        return course_catalog
-        
-    except Exception as e:
-        print(f"\n❌ Error initializing Course Catalog: {e}")
-        print("HINT: Check your import fixes inside rpi_courses/parser/course_catalog.py and rpi_courses/web.py.")
-        return None
+        try:
+            master_catalog.merge_from_url(url) 
+            time.sleep(1) 
+            
+        except Exception as e:
+            print(f"   ❌ Failed to parse {url}. Error: {e}")
+            
+    # 4. Final results
+    print("\n✅ Catalog Scraping Complete!")
+    print(f"Catalog Name: {master_catalog.name}")
+    print(f"Total Program Requirement Blocks Loaded: {len(master_catalog.programs)}")
+    
+    return master_catalog
 
 if __name__ == '__main__':
     catalog = load_latest_rpi_catalog()
 
-    if catalog and catalog.courses:
-        print("\n--- Example Course Access ---")
+    if catalog and catalog.programs:
+        print("\n--- Example Program Access ---")
         
-        # Access a known department for a quick check
-        try:
-            cs_courses = [c for c in catalog.get_courses() if c.dept == 'CSCI']
-            
-            if cs_courses:
-                example_course = cs_courses[0]
-                print(f"Found {len(cs_courses)} CSCI courses.")
-                print(f"Example: {example_course.code} - {example_course.name}")
-                print(f"  Sections Available: {len(example_course.sections)}")
-            else:
-                print("No CSCI courses found in the catalog.")
-                
-        except AttributeError:
-            print("Error: Course objects may not have a 'dept' attribute. Check your model definitions.")
+        # Access the first program found
+        first_program_name = list(catalog.programs.keys())[0]
+        first_program = catalog.programs[first_program_name]
+        
+        print(f"Loaded Program: **{first_program.name}**")
+        print(f"Total Requirements: {len(first_program.details)}")
+        print(f"Total Credits (Estimated): {first_program.credit_hours}")
+        
+        # Print a sample requirement detail
+        if first_program.details:
+            sample_detail = first_program.details[0]
+            print(f"  Sample Req Text: {sample_detail['text'][:70]}...")
+            print(f"  Sample Req Credits: {sample_detail['credits']}")
+            print(f"  Courses Linked: {[c['code'] for c in sample_detail['courses']]}")
