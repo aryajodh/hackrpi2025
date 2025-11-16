@@ -83,6 +83,7 @@ masterListScraper.py  # Main implementation of the course scraping software
 normalize_courses.py  # Parses words to fit data tables
 normalized_courses.json
 rpi_courses.json
+rpi_program_requirements.json
 ```
 
 2. Backend Setup
