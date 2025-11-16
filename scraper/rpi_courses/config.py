@@ -68,5 +68,5 @@ DEPARTMENTS = dict(
     IENV="Interdisciplinary Environmental Courses",
     USAF="Aerospace Studies (Air Force ROTC)",
     USAR="Military Science (Army ROTC)",
-    USNA="Naval Science (Navy ROTC",
+    USNA="Naval Science (Navy ROTC)",
 )
