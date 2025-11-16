@@ -24,8 +24,9 @@ except ImportError:
 
 import dateutil.parser
 
-# NEW CONSTANT FOR MODERN CATALOG INDEX
-CATALOG_INDEX_URL = "https://catalog.rpi.edu/content.php?catoid=33&navoid=873" 
+# NEW CONSTANTS: Targets the Programs Index page
+PROGRAMS_INDEX_URL = "https://catalog.rpi.edu/content.php?catoid=33&navoid=873" 
+BASE_URL = "https://catalog.rpi.edu/"
 
 
 def get(url, last_modified=None):
@@ -65,42 +66,39 @@ def get(url, last_modified=None):
         return ""
 
 
-# --- NEW FUNCTION FOR MODERN CATALOG SCRAPING ---
-def list_catalog_urls(index_url=CATALOG_INDEX_URL):
+# --- REWRITTEN DISCOVERY FUNCTION ---
+def list_catalog_urls(index_url=PROGRAMS_INDEX_URL):
     """
-    Scrapes the modern catalog index page and returns a list of URLs for individual 
-    department course listings. This replaces list_sis_files.
+    Scrapes the main index page to find all links leading to individual 
+    preview_program.php pages (the definitive source for requirements).
     """
     html_content = get(index_url)
     if not html_content:
         return []
 
     try:
-        # Use 'lxml' for speed, fall back to 'html.parser'
         soup = BeautifulSoup(html_content, 'lxml')
     except Exception:
         soup = BeautifulSoup(html_content, 'html.parser')
 
-    department_urls = []
-    base_url = "https://catalog.rpi.edu/"
+    program_urls = set()
 
-    # Use a generic selector for the entire page body content (more robust than 'sitemap')
-    content_area = soup.find('div', id='content') 
-    if not content_area:
-        content_area = soup 
-
-    # Iterate through ALL <a> tags in the content area
-    all_a_tags = content_area.find_all('a', href=True)
-
-    for a_tag in all_a_tags:
+    # Iterate through all <a> tags to find program preview links
+    for a_tag in soup.find_all('a', href=True):
         href = a_tag['href']
         
-        # Check if the link points to a department course page (contains navoid and catoid)
-        # AND filter out links intended for printing the catalog
-        if 'navoid=' in href and 'catoid=' in href and 'print' not in href and not href.startswith('http'):
-             department_urls.append(base_url + href)
+        # CRITICAL CHECK: Look for the specific program preview pattern
+        if 'preview_program.php' in href and 'poid=' in href:
+            # Construct the full, absolute URL
+            if not href.startswith('http'):
+                full_url = BASE_URL + href
+            else:
+                full_url = href
+            
+            program_urls.add(full_url)
              
-    return department_urls
+    # Return the unique list of program URLs
+    return list(program_urls)
 
 
 # --- DEPRECATED SIS FUNCTIONS (Kept as stubs) ---
@@ -159,7 +157,6 @@ def get_comm_file(date, base_url=COMM_URL):
         temp = tempfile.NamedTemporaryFile(delete=True)
         
         temp.write(f.read())
-        temp.seek(0)
         
         pdf = pyPdf.PdfFileReader(temp)
         

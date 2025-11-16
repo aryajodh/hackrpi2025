@@ -100,7 +100,18 @@ def program_requirements_feature(catalog, soup):
         'attendance', 'honors', 'times for registration', 'the rpi plan', 'academic regulations', 
         'residence and time limit', 'plan of study', 'thesis, projects, and professional projects',
         'office of graduate education requirements', 'program adjustments (drop/add/withdraw)',
-        'degree program changes', 'student records','withdrawal from the institute', 'advisers', 'advising'
+        'degree program changes', 'student records','withdrawal from the institute', 'advisers', 'advising',
+        'course listing', 
+        'substitutions for required courses',
+        'curriculum changes',
+        'the arch',
+        'double degrees',
+        'dual majors',
+        'minors',
+        'courses and grade requirements',
+        'satisfactory performance',
+        'co-listed courses & independent studies on graduate plans of study',
+        'fall', 'credits', 'semester', 'course', 'choose', 'option', ":", 'courses', 'required', 'option'
     }
     
     ACADEMIC_KEYWORDS = {'major', 'track', 'option', 'program', 'degree', 'curriculum', 'pathway'}

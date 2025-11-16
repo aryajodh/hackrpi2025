@@ -1,24 +1,17 @@
-# Assuming this is your main entry point (e.g., coursescraper.py)
-
 import time 
 import sys
-# Ensure imports work regardless of module structure
-try:
-    from rpi_courses.web import list_catalog_urls
-    from rpi_courses.parser.course_catalog import CourseCatalog
-except ImportError:
-    print("FATAL ERROR: Could not import rpi_courses modules. Check your directory structure and PYTHONPATH.")
-    sys.exit(1)
+from rpi_courses.web import list_catalog_urls
+from rpi_courses.parser.course_catalog import CourseCatalog
 
 
 def load_latest_rpi_catalog():
     """
-    Fetches the URLs for the modern catalog, loads them incrementally, 
-    and returns a single CourseCatalog object.
+    Fetches the URLs for the modern catalog's program pages, loads them 
+    incrementally, and returns a single CourseCatalog object.
     """
     print("--- Starting RPI Course Catalog Initialization ---")
     
-    # 1. Get the list of available catalog URLs
+    # 1. Get the list of available program URLs (now targeting preview_program.php)
     try:
         catalog_urls = list_catalog_urls()
     except Exception as e:
@@ -32,16 +25,18 @@ def load_latest_rpi_catalog():
     # 2. Initialize the master CourseCatalog object
     master_catalog = CourseCatalog() 
     
-    print(f"\nFound {len(catalog_urls)} department course pages to scrape.")
+    print(f"\nFound {len(catalog_urls)} program requirement pages to scrape.")
     
-    # 3. Iterate through each department URL and load programs incrementally
+    # 3. Iterate through each program URL and load requirements incrementally
     for i, url in enumerate(catalog_urls):
-        dept_info = url.split('&')[-1] 
-        print(f"[{i+1}/{len(catalog_urls)}] Loading data from {dept_info}...")
+        # The URL contains the unique Program ID (poid)
+        program_id = url.split('&')[-2].replace('poid=', '') 
+        print(f"[{i+1}/{len(catalog_urls)}] Loading data from Program ID: {program_id}...")
         
         try:
+            # Merge_from_url fetches the page, parses its headings/lists, and updates catalog.programs
             master_catalog.merge_from_url(url) 
-            time.sleep(1) 
+            time.sleep(1) # Be polite!
             
         except Exception as e:
             print(f"   ❌ Failed to parse {url}. Error: {e}")
@@ -59,17 +54,18 @@ if __name__ == '__main__':
     if catalog and catalog.programs:
         print("\n--- Example Program Access ---")
         
-        # Access the first program found
-        first_program_name = list(catalog.programs.keys())[0]
-        first_program = catalog.programs[first_program_name]
+        # 🛑 Final Fixed Loop: Efficiently iterate over all parsed programs
+        for program_name, temp_program in catalog.programs.items():
+            
+            # Print separator for clarity
+            print("--------------------------------------------------")
+            print(f"Loaded Program: **{temp_program.name}**")
+            print(f"Total Requirements (Sections): {len(temp_program.details)}")
+            print(f"Total Credits (Estimated): {temp_program.credit_hours}")
         
-        print(f"Loaded Program: **{first_program.name}**")
-        print(f"Total Requirements: {len(first_program.details)}")
-        print(f"Total Credits (Estimated): {first_program.credit_hours}")
-        
-        # Print a sample requirement detail
-        if first_program.details:
-            sample_detail = first_program.details[0]
-            print(f"  Sample Req Text: {sample_detail['text'][:70]}...")
-            print(f"  Sample Req Credits: {sample_detail['credits']}")
-            print(f"  Courses Linked: {[c['code'] for c in sample_detail['courses']]}")
+            # Print a sample requirement detail from the first item
+            if temp_program.details:
+                sample_detail = temp_program.details[0]
+                print(f"  Sample Req Text: {sample_detail['text'][:70]}...")
+                print(f"  Sample Req Credits: {sample_detail['credits']}")
+                print(f"  Courses Linked: {[c['code'] for c in sample_detail['courses']]}")
