@@ -3,992 +3,659 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>T.R.R.A.M. Advisor Bot</title>
-    <!-- Load Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Configure Tailwind and Custom Colors for Retro Theme -->
-    <script>
+    <title>TRRAM Academic Schedule Planner (Retro Outline Glow)</title>
+    
+<script src="https://cdn.tailwindcss.com"></script>
+    
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+    
+    
+<script>
         tailwind.config = {
-            darkMode: 'class', // Enable dark mode based on 'dark' class
+            darkMode: 'class', // Enable class-based dark mode
             theme: {
                 extend: {
-                    fontFamily: {
-                        mono: ['"Courier New"', 'monospace'],
-                    },
                     colors: {
-                        'crt-green': '#00ff00',
-                        'crt-dark': '#001a00',
-                        'crt-yellow': '#ffcc00',
-                        'crt-red': '#ff0000',
-                    }
-                }
-            }
+                        // RPI-inspired Colors (Used in 'RPI Red & Black' theme)
+                        'rpi-red': '#FF4455', // Brighter red for glow
+                        'rpi-dark': '#111111', 
+                        'rpi-light-gray': '#E0E0E0',
+                        'rpi-gold': '#FFCC00', 
+                    },
+                },
+            },
         }
     </script>
     <style>
-        body { font-family: 'Courier New', monospace; }
-        .crt {
-            /* Basic CRT scanline effect */
-            background: repeating-linear-gradient(
-                to bottom,
-                transparent 0,
-                transparent 1px,
-                rgba(0, 0, 0, 0.1) 1px,
-                rgba(0, 0, 0, 0.2) 2px
-            );
-            /* Dark mode specific scanlines */
-            .dark & {
-                background: repeating-linear-gradient(
-                    to bottom,
-                    transparent 0,
-                    transparent 1px,
-                    rgba(0, 255, 0, 0.05) 1px,
-                    rgba(0, 255, 0, 0.1) 2px
-                );
-            }
+        /* Base styles using VT323 font */
+        body {
+            font-family: 'VT323', monospace;
+            transition: background-color 0.5s, color 0.5s;
+            text-rendering: optimizeLegibility; 
+            font-size: 1.125rem; /* Increase base font size slightly for readability */
         }
-        .cursor-blink {
-            animation: blink 1s step-end infinite;
+        
+        /* Custom Border Glow Effect */
+        .border-glow {
+            box-shadow: 0 0 8px 2px currentColor, inset 0 0 8px 2px currentColor; /* Outer and inner glow */
+            transition: box-shadow 0.3s ease-in-out;
         }
-        @keyframes blink {
-            from, to { border-right-color: transparent }
-            50% { border-right-color: currentColor }
+        
+        /* Custom button shadow effects for retro/chunky look */
+        .shadow-button {
+            border-width: 3px; /* Thicker borders */
+            box-shadow: 4px 4px 0 currentColor;
+            line-height: 1;
         }
-        /* Style for the input cursor glow */
-        input:focus {
-            box-shadow: 0 0 5px currentColor;
+        .shadow-button:hover {
+            box-shadow: 5px 5px 0 currentColor;
         }
+        
+        /* Ensure select elements use the font */
+        select {
+            font-family: 'VT323', monospace;
+        }
+        
+        /* Force scrollbar to be visible for the retro feel */
+        ::-webkit-scrollbar {
+            width: 12px;
+            height: 12px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--scrollbar-track-color, #222);
+            border: 1px solid var(--scrollbar-border-color, #444);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--scrollbar-thumb-color, #666);
+            border: 1px solid var(--scrollbar-border-color, #888);
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--scrollbar-thumb-hover-color, #999);
+        }
+        
+        /* Apply scrollbar colors based on theme, handled by JS */
+        html.theme-dark-terminal {
+            --scrollbar-track-color: #111;
+            --scrollbar-border-color: #0d0;
+            --scrollbar-thumb-color: #0f0;
+            --scrollbar-thumb-hover-color: #3f3;
+        }
+        html.theme-rpi-red-black {
+            --scrollbar-track-color: #111;
+            --scrollbar-border-color: #C4001A;
+            --scrollbar-thumb-color: #FF4455;
+            --scrollbar-thumb-hover-color: #FF7788;
+        }
+        /* Add more theme-specific scrollbar styles here as needed */
     </style>
 </head>
-<body class="transition-colors duration-500">
-    <div id="root"></div>
 
-    <!-- 1. Load React and ReactDOM (Must be first) -->
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<body class="bg-gray-100 text-gray-900 min-h-screen p-4 sm:p-8 flex justify-center">
 
-    <!-- 2. Load Babel (Needed to compile JSX) -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <div id="app-container" class="w-full max-w-6xl p-4 sm:p-6 md:p-8 relative z-10 
+        border-4 shadow-xl rounded-none transition-colors duration-500 
+        border-gray-900 bg-white">
 
-    <!-- 3. Load Firebase Modules (EXPOSED GLOBALLY) -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { 
-            getAuth, 
-            signInAnonymously, 
-            signInWithCustomToken, 
-            onAuthStateChanged,
-            createUserWithEmailAndPassword,
-            signInWithEmailAndPassword,
-            signOut,
-            setPersistence,
-            browserSessionPersistence
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, setDoc, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // Expose Firebase functions globally for the Babel script block to access
-        window.FirebaseServices = { 
-            initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
-            createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut,
-            getFirestore, doc, onSnapshot, setDoc, serverTimestamp, setLogLevel,
-            setPersistence, browserSessionPersistence
-        };
         
-        // Ensure global config variables are set, even if they're empty strings
-        if (typeof window.__app_id === 'undefined') window.__app_id = 'default-trram-planner';
-        if (typeof window.__firebase_config === 'undefined') window.__firebase_config = '{}';
-        if (typeof window.__initial_auth_token === 'undefined') window.__initial_auth_token = null;
-        
-        // Add log level to ensure we see auth issues
-        setLogLevel('debug');
-
-        console.log("Firebase services loaded and exposed globally.");
-        window.isFirebaseSdkLoaded = true;
-    </script>
-    
-    <!-- 4. Load the Application Logic (JSX) -->
-    <script type="text/babel">
-        const { useState, useEffect, useCallback, useMemo } = React;
-
-        // --- Inline SVG Icons (omitted for brevity, assume they are defined) ---
-        const Icon = ({ children, className }) => (
-            <svg className={`w-5 h-5 ${className}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                {children}
-            </svg>
-        );
-        const BotIcon = (props) => (
-            <Icon {...props}>
-                <path d="M12 18s-4 0-4-4 4-8 4-8 4 4 4 8-4 4-4 4zM12 2v2M4.22 8.22l1.42 1.42M19.78 8.22l-1.42 1.42M2 12h2M20 12h-2M6.41 17.59l1.42-1.42M17.59 17.59l-1.42-1.42"/>
-            </Icon>
-        );
-        const SearchIcon = (props) => (
-            <Icon {...props}>
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </Icon>
-        );
-        const SaveIcon = (props) => (
-            <Icon {...props}>
-                <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"></path>
-                <polyline points="17 21 17 13 7 13 7 21"></polyline>
-                <polyline points="7 3 7 8 15 8"></polyline>
-            </Icon>
-        );
-        const LoaderIcon = (props) => (
-            <Icon {...props}>
-                <path d="M21.5 2C17 2 13 4 12 7M2.5 22C7 22 11 20 12 17M12 22v-3M12 2v3"/>
-            </Icon>
-        );
-        const XIcon = (props) => (
-            <Icon {...props}>
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-            </Icon>
-        );
-        const MailIcon = (props) => (
-            <Icon {...props}>
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                <polyline points="22,6 12,13 2,6"></polyline>
-            </Icon>
-        );
-        const LockIcon = (props) => (
-            <Icon {...props}>
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                <path d="M7 11V7a5 5 0 0110 0v4"></path>
-            </Icon>
-        );
-        const LogOutIcon = (props) => (
-            <Icon {...props}>
-                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"></path>
-                <polyline points="16 17 21 12 16 7"></polyline>
-                <line x1="21" y1="12" x2="9" y2="12"></line>
-            </Icon>
-        );
-        const SunIcon = (props) => (
-            <Icon {...props}>
-                <circle cx="12" cy="12" r="5"></circle>
-                <line x1="12" y1="1" x2="12" y2="3"></line>
-                <line x1="12" y1="21" x2="12" y2="23"></line>
-                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                <line x1="1" y1="12" x2="3" y2="12"></line>
-                <line x1="21" y1="12" x2="23" y2="12"></line>
-                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-            </Icon>
-        );
-        const MoonIcon = (props) => (
-            <Icon {...props}>
-                <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"></path>
-            </Icon>
-        );
-        // --- End Icons ---
-        
-        // --- Global Variables (Read from window) ---
-        const appId = window.__app_id || 'default-trram-planner';
-        const firebaseConfig = JSON.parse(window.__firebase_config || '{}');
-        const initialAuthToken = window.__initial_auth_token || null;
-        const FirebaseServices = window.FirebaseServices || {};
-        const API_KEY = ""; // Placeholder for the Gemini API Key
-
-        // Destructure Firebase functions
-        const { 
-            initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
-            createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut,
-            getFirestore, doc, onSnapshot, setDoc, serverTimestamp, setLogLevel,
-            setPersistence, browserSessionPersistence
-        } = FirebaseServices;
-        
-        // Flag to check if Firebase functions are available
-        const isSDKLoaded = !!initializeApp && !!getAuth && !!getFirestore;
-
-
-        // --- Course Data Structure for AI Output (JSON Schema) ---
-        const COURSE_PLAN_SCHEMA = {
-            type: "ARRAY",
-            items: {
-                type: "OBJECT",
-                properties: {
-                    "semester": { "type": "STRING", "description": "e.g., Fall 1, Spring 2, Summer Arch" },
-                    "year": { "type": "INTEGER", "description": "Academic year number (1-4)" },
-                    "courses": {
-                        type: "ARRAY",
-                        items: {
-                            type: "OBJECT",
-                            properties: {
-                                "code": { "type": "STRING", "description": "Course code, e.g., CSCI 1100" },
-                                "title": { "type": "STRING", "description": "Course full title" },
-                                "credits": { "type": "INTEGER" },
-                                "isCore": { "type": "BOOLEAN", "description": "True if mandatory core/major requirement" },
-                                "isComplete": { "type": "BOOLEAN", "description": "False initially, toggled by user" }
-                            },
-                            required: ["code", "title", "credits", "isCore", "isComplete"]
-                        }
-                    }
-                },
-                required: ["semester", "year", "courses"]
-            }
-        };
-
-        // --- System Instruction for Gemini (Unchanged) ---
-        const SYSTEM_INSTRUCTION = `
-        You are a highly specialized RPI Academic Advisor Bot, T.R.R.A.M. (The Retro Registration Autonomous Machine). Your task is to generate a comprehensive, 4-year (8-semester) course plan for a student based on their declared major(s).
-
-        Constraint: Every plan must adhere to the RPI "Arch" requirement: Year 2 ends with a mandatory Summer term ("Summer Arch"), and the following Fall or Spring term ("Year 3") must be an "Away" semester (empty courses).
-
-        RPI Core Requirements to Incorporate (Assume Engineering/Science default):
-        1.  **Total Credits:** Target 128 credits total (4-credit courses are typical).
-        2.  **Semester Load:** Target 16 credits (4 courses) per Fall/Spring semester.
-        3.  **HASS Core:** Must include: 1 HASS Inquiry (INQR), 1 HASS Communication Intensive (CI), 1 HASS 4000-level course, and a 12-credit Integrative Pathway.
-        4.  **Science Core:** Includes core Math (Calc I/II, Diff Eq, etc.) and Physics I/II.
-
-        Create a sequential, logical plan, ensuring prerequisites are met (e.g., Calc I before Calc II, CS I before Data Structures). You must ONLY return the JSON object following the provided schema. DO NOT include any explanatory text, markdown formatting, or notes outside the JSON block.
-        `;
-
-        // --- Utility Components for Retro Styling ---
-
-        /** Custom Hook for Dark Mode */
-        const useDarkMode = () => {
-            const [isDarkMode, setIsDarkMode] = useState(false);
-            
-            useEffect(() => {
-                const html = document.documentElement;
-                const savedTheme = localStorage.getItem('trram-theme');
-                
-                if (savedTheme === 'dark') {
-                    setIsDarkMode(true);
-                    html.classList.add('dark');
-                } else {
-                    setIsDarkMode(false);
-                    html.classList.remove('dark');
-                }
-            }, []);
-
-            const toggleDarkMode = useCallback(() => {
-                const html = document.documentElement;
-                setIsDarkMode(prev => {
-                    const newMode = !prev;
-                    if (newMode) {
-                        html.classList.add('dark');
-                        localStorage.setItem('trram-theme', 'dark');
-                    } else {
-                        html.classList.remove('dark');
-                        localStorage.setItem('trram-theme', 'light');
-                    }
-                    return newMode;
-                });
-            }, []);
-
-            return [isDarkMode, toggleDarkMode];
-        };
-
-        /** Applies the CRT Terminal style to the entire app. */
-        const TerminalWrapper = ({ children, isDarkMode, toggleDarkMode, userId, isEnvReady, onSignOut, userIsAnonymous }) => {
-            const terminalAccent = isDarkMode ? 'text-crt-yellow' : 'text-indigo-600';
-            
-            return (
-                <div className={`min-h-screen p-4 sm:p-8 flex flex-col items-center w-full transition-colors duration-500
-                    ${isDarkMode 
-                        ? 'bg-[#000000] text-crt-green' 
-                        : 'bg-gray-100 text-gray-900'
-                    }`}
-                >
-                    {/* Screen Container with Retro Look */}
-                    <div className={`w-full max-w-6xl p-4 sm:p-6 md:p-8 relative z-10 font-mono 
-                        ${isDarkMode
-                            ? 'border-4 border-crt-green shadow-[0_0_20px_#00ff00,inset_0_0_10px_#00ff00] bg-crt-dark'
-                            : 'border-4 border-gray-900 shadow-xl bg-white'
-                        } rounded-none overflow-hidden
-                    `}>
-                        <header className={`mb-6 border-b-4 pb-3 flex justify-between items-start 
-                            ${isDarkMode ? 'border-crt-yellow' : 'border-gray-900'}`
-                        }>
-                            <div>
-                                <h1 className={`text-2xl sm:text-3xl font-bold uppercase cursor-blink flex items-center`}>
-                                    <BotIcon className={`w-6 h-6 mr-2 mb-1 ${isDarkMode ? 'text-crt-yellow' : 'text-indigo-600'}`} />
-                                    T.R.R.A.M. Bot 
-                                </h1>
-                                <p className={`text-sm ml-8 italic ${terminalAccent}`}>
-                                    Autonomous Advisor System Activated
-                                </p>
-                            </div>
-                            <div className="flex flex-col items-end">
-                                <div className="flex space-x-2">
-                                    {userId && !userIsAnonymous && ( // Only show logout if user is authenticated and not anonymous
-                                        <TerminalButton 
-                                            onClick={onSignOut}
-                                            isDarkMode={isDarkMode}
-                                            icon={LogOutIcon}
-                                            className="!px-3 !py-1 text-xs"
-                                        >
-                                            LOGOUT
-                                        </TerminalButton>
-                                    )}
-                                    <button 
-                                        onClick={toggleDarkMode}
-                                        className={`p-2 border-2 text-sm transition-colors 
-                                        ${isDarkMode 
-                                            ? 'border-crt-green bg-[#004400] text-crt-green hover:bg-[#006600]' 
-                                            : 'border-gray-900 bg-gray-300 text-gray-900 hover:bg-gray-400'
-                                        }
-                                        `}
-                                        title="Toggle Theme"
-                                    >
-                                        {isDarkMode ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
-                                    </button>
-                                </div>
-                                
-                                <p className={`mt-2 text-xs ${isDarkMode ? 'text-[#008800]' : 'text-gray-600'}`}>User ID: {userId ? userId.substring(0, 8) + '...' : (isEnvReady ? 'N/A' : 'Loading')}</p>
-                            </div>
-                        </header>
-
-                        <div className="crt text-sm sm:text-base">
-                            {children}
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        /** Generic button with retro styling */
-        const TerminalButton = ({ children, onClick, disabled, icon: Icon, className = '', isDarkMode }) => (
-            <button
-                onClick={onClick}
-                disabled={disabled}
-                className={`flex items-center justify-center space-x-2 px-3 py-2 border-2 font-bold uppercase disabled:opacity-50 disabled:cursor-not-allowed transition duration-150 rounded-none
-                ${isDarkMode 
-                    ? 'border-crt-green bg-[#004400] text-crt-green shadow-[2px_2px_0_#00ff00] hover:bg-[#006600] hover:shadow-[3px_3px_0_#00ff00]' 
-                    : 'border-gray-900 bg-indigo-500 text-white shadow-[2px_2px_0_#333] hover:bg-indigo-600 hover:shadow-[3px_3px_0_#333]'
-                }
-                ${className}`}
-            >
-                {Icon && <Icon className="w-4 h-4" />}
-                <span className="text-xs sm:text-sm">{children}</span>
-            </button>
-        );
-
-        /** Display for a single course item */
-        const CourseItem = ({ course, onToggle, isDarkMode }) => (
-            <div
-                className={`p-2 border-b flex justify-between items-center cursor-pointer transition duration-100 rounded-none
-                ${isDarkMode ? 'border-[#004400]' : 'border-gray-200'}
-                ${course.isComplete
-                    ? `opacity-50 line-through ${isDarkMode ? 'text-[#008800]' : 'text-gray-500'}`
-                    : `${isDarkMode ? 'text-crt-green hover:bg-[#002a00]' : 'text-gray-900 hover:bg-gray-100'}`
-                }`}
-                onClick={() => onToggle(course)}
-                title="Click to toggle completion status (Completed/Needed)"
-            >
-                <span className="font-bold w-1/4 truncate">{course.code}</span>
-                <span className="w-1/2 truncate">{course.title}</span>
-                <span className="w-1/4 text-right font-bold text-sm">
-                    {course.credits} cr.
-                    {course.isCore && 
-                        <span 
-                            className={`ml-2 text-xs px-1 py-0 border rounded-none 
-                                ${isDarkMode ? 'text-crt-yellow border-crt-yellow' : 'text-red-600 border-red-600'}
-                            `}
-                        >
-                            CORE
-                        </span>
-                    }
-                </span>
+<header class="mb-6 border-b-4 pb-3 flex flex-col sm:flex-row justify-between items-start sm:items-end border-gray-900">
+            <div>
+                <h1 class="text-3xl sm:text-4xl font-bold uppercase flex items-center">
+                    
+                    <!-- NEW PIXEL ART TRAM ICON (Uses parent's 'text-rpi-red' color via currentColor) -->
+                    <svg id="header-icon" class="w-8 h-8 mr-2 mb-1 text-rpi-red" fill="none" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                        <!-- Tram Body (Main block, uses parent color) -->
+                        <rect x="2" y="5" width="16" height="8" fill="currentColor" />
+                        <!-- Roof Detail (A slightly darker color, assuming dark themes mostly) -->
+                        <rect x="3" y="4" width="14" height="1" fill="currentColor" opacity="0.8" />
+                        <!-- Windows (Dark fill for screen/glass) -->
+                        <rect x="4" y="7" width="3" height="4" fill="#111111" /> 
+                        <rect x="8" y="7" width="3" height="4" fill="#111111" />
+                        <rect x="12" y="7" width="3" height="4" fill="#111111" />
+                        <!-- Wheels (Solid Black) -->
+                        <rect x="3" y="14" width="2" height="2" fill="#000000" />
+                        <rect x="15" y="14" width="2" height="2" fill="#000000" />
+                    </svg>
+                    
+                    T.R.R.A.M.
+                </h1>
+                <p id="user-id-display" class="text-base ml-8 italic text-gray-600">
+                    Academic Plan Generator (User ID: Loading...)
+                </p>
             </div>
-        );
-
-        /** Component for Login/Sign Up */
-        const LoginScreen = ({ auth, onLoginSuccess, isDarkMode, authError }) => {
-            const [email, setEmail] = useState('');
-            const [password, setPassword] = useState('');
-            const [isSigningUp, setIsSigningUp] = useState(false);
-            const [loading, setLoading] = useState(false);
-            const [localError, setLocalError] = useState(null);
-
-            const terminalAccent = isDarkMode ? 'text-crt-yellow' : 'text-indigo-600';
-            const inputStyle = `w-full p-2 border-2 focus:ring-0 focus:outline-none rounded-none font-mono transition-colors 
-                ${isDarkMode 
-                    ? 'bg-[#111111] border-crt-green text-crt-green caret-crt-green placeholder-[#008800]' 
-                    : 'bg-white border-gray-900 text-gray-900 placeholder-gray-500'
-                }`;
-
-            const handleSubmit = async (e) => {
-                e.preventDefault();
-                setLoading(true);
-                setLocalError(null);
-                
-                if (!email || !password) {
-                    setLocalError("Email and Password are required.");
-                    setLoading(false);
-                    return;
-                }
-
-                try {
-                    if (isSigningUp) {
-                        await createUserWithEmailAndPassword(auth, email, password);
-                    } else {
-                        await signInWithEmailAndPassword(auth, email, password);
-                    }
-                    // onAuthStateChanged listener handles setting the view
-                } catch (error) {
-                    console.error("Authentication Error:", error);
-                    let displayMessage = "Authentication failed. ";
-                    if (error.code) {
-                        displayMessage += error.code.replace('auth/', '').replace(/-/g, ' ');
-                    }
-                    setLocalError(displayMessage);
-                } finally {
-                    setLoading(false);
-                }
-            };
             
-            const currentError = localError || authError;
-
-            return (
-                <div className="max-w-md mx-auto mt-10 p-6">
-                    <h2 className={`text-2xl font-bold mb-4 uppercase text-center ${terminalAccent}`}>
-                        {isSigningUp ? 'REGISTER NEW USER' : 'USER LOGIN'}
-                    </h2>
-                    
-                    {currentError && (
-                        <div className={`p-3 mb-4 border-2 rounded-none border-crt-red bg-[#440000] text-crt-red`}>
-                            <span className="font-bold">AUTH FAILURE:</span> <span>{currentError}</span>
-                        </div>
-                    )}
-
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <div>
-                            <label className={`block text-sm font-bold mb-1 uppercase ${terminalAccent}`}>
-                                <MailIcon className="inline mr-2 w-4 h-4" /> Email
-                            </label>
-                            <input
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                className={inputStyle}
-                                placeholder="user@rpi.edu"
-                                disabled={loading}
-                            />
-                        </div>
-                        <div>
-                            <label className={`block text-sm font-bold mb-1 uppercase ${terminalAccent}`}>
-                                <LockIcon className="inline mr-2 w-4 h-4" /> Password
-                            </label>
-                            <input
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                className={inputStyle}
-                                placeholder="********"
-                                disabled={loading}
-                            />
-                        </div>
-                        
-                        <TerminalButton type="submit" disabled={loading} isDarkMode={isDarkMode} className="w-full">
-                            {loading 
-                                ? <><LoaderIcon className="w-4 h-4 animate-spin" /> {isSigningUp ? 'REGISTERING...' : 'SIGNING IN...'}</>
-                                : <>{isSigningUp ? 'SIGN UP' : 'SIGN IN'}</>
-                            }
-                        </TerminalButton>
-                    </form>
-
-                    <button
-                        onClick={() => setIsSigningUp(prev => !prev)}
-                        className={`w-full mt-4 text-xs uppercase underline transition-colors 
-                            ${isDarkMode ? 'text-crt-green hover:text-crt-yellow' : 'text-indigo-600 hover:text-indigo-800'}`}
-                        disabled={loading}
-                    >
-                        {isSigningUp ? 'Already have an account? Sign In' : 'Need an account? Sign Up'}
-                    </button>
-                    
-                    <button
-                        onClick={onLoginSuccess}
-                        className={`w-full mt-6 text-xs uppercase transition-colors border-2 p-2 
-                            ${isDarkMode ? 'border-crt-green text-crt-green hover:bg-[#004400]' : 'border-gray-900 text-gray-900 hover:bg-gray-200'}`}
-                        disabled={loading}
-                    >
-                        Skip for Anonymous Access (No Plan Saving)
-                    </button>
-                </div>
-            );
-        };
-
-
-        // --- Main Application Component ---
-        const App = () => {
-            const [programs, setPrograms] = useState('');
-            const [plan, setPlan] = useState(null);
-            const [loading, setLoading] = useState(false);
-            const [error, setError] = useState(null);
-            const [db, setDb] = useState(null);
-            const [auth, setAuth] = useState(null);
-            const [userId, setUserId] = useState(null);
-            const [userIsAnonymous, setUserIsAnonymous] = useState(false);
-            const [authReady, setAuthReady] = useState(false);
-            const [isDarkMode, toggleDarkMode] = useDarkMode();
-            const [view, setView] = useState('loading'); // 'loading', 'planner' or 'login'
-
-            // --- Firebase Initialization and Authentication (CRITICAL FIX) ---
-            useEffect(() => {
-                if (!isSDKLoaded || authReady) return; 
-
-                try {
-                    const app = initializeApp(firebaseConfig);
-                    const authInstance = getAuth(app);
-                    const dbInstance = getFirestore(app);
-                    
-                    setDb(dbInstance);
-                    setAuth(authInstance);
-
-                    // Set session persistence
-                    setPersistence(authInstance, browserSessionPersistence);
-
-                    const unsubscribe = onAuthStateChanged(authInstance, async (user) => {
-                        if (user) {
-                            setUserId(user.uid);
-                            setUserIsAnonymous(user.isAnonymous);
-                            // If signed in, go to planner
-                            setView('planner');
-                            console.log(`Auth State: Signed in. User ID: ${user.uid} (Anonymous: ${user.isAnonymous})`);
-                        } else {
-                            // Only set view to 'loading' if we haven't determined the state yet
-                            if (!authReady) {
-                                // Attempt initial sign-in logic here only if we haven't finished auth yet
-                                if (initialAuthToken) {
-                                    try {
-                                        await signInWithCustomToken(authInstance, initialAuthToken);
-                                        return; // onAuthStateChanged will re-run
-                                    } catch (err) {
-                                        console.warn("Custom Token Sign-In Failed (Falling back):", err.message);
-                                    }
-                                }
-                                
-                                try {
-                                    // Final fallback: sign in anonymously 
-                                    const userCredential = await signInAnonymously(authInstance);
-                                    setUserId(userCredential.user.uid);
-                                    setUserIsAnonymous(true);
-                                    console.log("Signed in anonymously.");
-                                    setView('planner');
-                                } catch (anonErr) {
-                                    console.error("Anonymous Sign-In Failed:", anonErr.message);
-                                    setView('login'); // If everything fails, force login/signup view
-                                    setError("Authentication failed. Please ensure Anonymous and Custom Auth are enabled in Firebase Console.");
-                                }
-                            } else {
-                                // If the user explicitly logged out or was signed out
-                                setView('login');
-                                setUserId(null);
-                                setUserIsAnonymous(false);
-                                setPlan(null);
-                            }
-                        }
-                        setAuthReady(true); 
-                        if (error && error.includes("Authentication failed")) setError(null); // Clear auth error once successful
-                    });
-
-                    return () => unsubscribe();
-                } catch (err) {
-                    console.error("Firebase Init Error:", err);
-                    setError("System Error: Could not initialize Firebase services. Check console for details.");
-                    setAuthReady(true);
-                }
-            }, [initialAuthToken, authReady]);
-
-
-            // --- Sign Out Handler ---
-            const handleSignOut = async () => {
-                if (auth && signOut) {
-                    try {
-                        // This will trigger onAuthStateChanged to run again, where it attempts anonymous sign-in
-                        await signOut(auth);
-                    } catch (e) {
-                        console.error("Sign Out Error:", e);
-                        setError("Error: Failed to sign out.");
-                    }
-                }
-            };
             
-            // --- Firestore Path Helper (Uses Public Path for Security Rules) ---
-            const getPlanDocRef = useCallback(() => {
-                if (!db || !userId || !doc) return null;
-                // Path: /artifacts/{appId}/public/data/course_plans/plan_for_{userId}
-                const uniqueDocId = `plan_for_${userId}`;
-                return doc(db, 'artifacts', appId, 'public', 'data', 'course_plans', uniqueDocId);
-            }, [db, userId, appId]);
-
-            // --- Load Plan from Firestore (Real-time Listener - CRITICAL FIX) ---
-            useEffect(() => {
-                // Guard clause: DO NOT proceed until auth is complete and userId is confirmed
-                if (!authReady || !userId || userIsAnonymous) {
-                    // Anonymous users cannot save, so we don't attempt to load past data either.
-                    setPlan(null);
-                    return;
-                }
-
-                const docRef = getPlanDocRef();
-                if (!docRef) return;
-                
-                // This will ONLY run after a non-anonymous user is confirmed.
-                const unsubscribe = onSnapshot(docRef, (docSnap) => {
-                    if (docSnap.exists()) {
-                        const data = docSnap.data();
-                        // Only load program input if the plan also exists
-                        setPrograms(data.programs || ''); 
-                        setPlan(data.plan || null);
-                        console.log("Plan loaded from Firestore for user:", userId);
-                    } else {
-                        console.log("No existing plan found in Firestore for user:", userId);
-                        setPlan(null); 
-                    }
-                }, (err) => {
-                    console.error("Firestore onSnapshot error:", err);
-                    setError("Error: Failed to load plan data. Check security rules and console details.");
-                });
-
-                return () => unsubscribe();
-            }, [authReady, userId, userIsAnonymous, getPlanDocRef]); // Dependencies now include authReady, userId, and userIsAnonymous
-
-            // --- Save Plan to Firestore ---
-            const savePlan = useCallback(async (currentPlan = plan) => {
-                if (userIsAnonymous) {
-                    // Non-blocking warning for anonymous users
-                    console.warn("Save attempted: Anonymous users cannot save data persistently.");
-                    return; 
-                }
-
-                const docRef = getPlanDocRef();
-                if (!docRef || !currentPlan || !setDoc || !serverTimestamp) {
-                    console.error("Save failed: Missing docRef or plan data.");
-                    return;
-                }
-                
-                setLoading(true);
-                setError(null);
-                try {
-                    await setDoc(docRef, {
-                        programs: programs,
-                        plan: currentPlan,
-                        userId: userId,
-                        updatedAt: serverTimestamp()
-                    }, { merge: true });
-                    console.log("Plan saved successfully for user:", userId);
-                } catch (e) {
-                    console.error("Error saving document: ", e);
-                    setError("Error: Failed to save the plan. See console for permissions details.");
-                } finally {
-                    setLoading(false);
-                }
-            }, [getPlanDocRef, plan, programs, userId, userIsAnonymous]);
-
-            // --- Gemini API Call for Plan Generation (Unchanged) ---
-            const fetchPlan = async () => {
-                if (!programs.trim()) {
-                    setError("Please enter your RPI program(s) first (e.g., 'CS, Dual Math').");
-                    return;
-                }
-                
-                setLoading(true);
-                setError(null);
-                const userQuery = `Generate a 4-year, 8-semester course plan for a student entering RPI with the following program(s): ${programs.trim()}.`;
-                
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`;
-
-                const payload = {
-                    contents: [{ parts: [{ text: userQuery }] }],
-                    systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-                    generationConfig: {
-                        responseMimeType: "application/json",
-                        responseSchema: COURSE_PLAN_SCHEMA,
-                    }
-                };
-
-                let attempts = 0;
-                const maxAttempts = 5;
-                let generatedPlan = null;
-                let success = false;
-
-                while (attempts < maxAttempts && !success) {
-                    attempts++;
-                    try {
-                        const response = await fetch(apiUrl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        });
-
-                        if (!response.ok) {
-                            throw new Error(`HTTP error! status: ${response.status}`);
-                        }
-
-                        const result = await response.json();
-                        const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
-
-                        if (jsonText) {
-                            generatedPlan = JSON.parse(jsonText);
-                            success = true;
-                        } else {
-                            throw new Error("API returned no content.");
-                        }
-                    } catch (e) {
-                        console.error(`Attempt ${attempts} failed.`, e); 
-                        if (attempts < maxAttempts) {
-                            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempts - 1)));
-                        } else {
-                            setError("Error: Failed to generate plan after multiple retries. Try simplifying your input.");
-                        }
-                    }
-                }
-
-                if (success && generatedPlan) {
-                    setPlan(generatedPlan);
-                    // Only save if the user is not anonymous
-                    if (!userIsAnonymous) {
-                         await savePlan(generatedPlan); 
-                    } else {
-                         setError("Plan generated successfully, but saving is disabled for anonymous users. Please log in to save.");
-                    }
-                }
-                setLoading(false);
-            };
-            
-            // --- Plan Modification Logic: Toggle Course Status ---
-            const toggleCourseCompletion = useCallback((courseToToggle) => {
-                setPlan(prevPlan => {
-                    if (!prevPlan) return prevPlan;
-
-                    const updatedPlan = prevPlan.map(semester => ({
-                        ...semester,
-                        courses: semester.courses.map(course =>
-                            (course.code === courseToToggle.code && semester.semester === courseToToggle.semester)
-                                ? { ...course, isComplete: !course.isComplete }
-                                : course
-                        ),
-                    }));
-                    if (!userIsAnonymous) {
-                        savePlan(updatedPlan); // Save the updated plan to Firestore immediately
-                    }
-                    return updatedPlan;
-                });
-            }, [savePlan, userIsAnonymous]);
-
-            // --- Credit Calculations ---
-            const { totalCredits, completedCredits } = useMemo(() => {
-                if (!plan) return { totalCredits: 0, completedCredits: 0 };
-                
-                const total = plan.reduce((sum, semester) => 
-                    sum + semester.courses.reduce((semSum, course) => semSum + course.credits, 0)
-                , 0);
-
-                const completed = plan.reduce((sum, semester) => 
-                    sum + semester.courses.reduce((semSum, course) => semSum + (course.isComplete ? course.credits : 0), 0)
-                , 0);
-                
-                return { totalCredits: total, completedCredits: completed };
-            }, [plan]);
-
-
-            // --- Main Render ---
-            const terminalAccent = isDarkMode ? 'text-crt-yellow' : 'text-indigo-600';
-            const errorColor = isDarkMode ? 'border-[#ff0000] bg-[#440000] text-[#ff0000]' : 'border-red-600 bg-red-100 text-red-800';
-            const infoColor = isDarkMode ? 'border-crt-green bg-[#004400]' : 'border-green-600 bg-green-100';
-
-            // 1. Loading and SDK Check Screen
-            if (!isSDKLoaded || view === 'loading' && !authReady) {
-                return (
-                    <TerminalWrapper isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} userId={null} isEnvReady={false} onSignOut={handleSignOut} userIsAnonymous={userIsAnonymous}>
-                        <div className={`w-full text-center p-12 border-2 border-dashed rounded-none mt-10 
-                            ${isDarkMode ? 'border-crt-green text-crt-green' : 'border-gray-500 text-gray-600'}`}>
-                            <LoaderIcon className={`w-10 h-10 mx-auto mb-4 animate-spin ${terminalAccent}`} />
-                            <p className="text-lg uppercase">SYSTEM BOOTING... INITIALIZING FIREBASE.</p>
-                            <p className="text-sm mt-2">Awaiting Authentication Status.</p>
-                        </div>
-                    </TerminalWrapper>
-                );
-            }
-
-            // 2. Authentication Screen (only if forced due to a severe auth failure or explicit logout)
-            if (view === 'login' && auth) {
-                return (
-                    <TerminalWrapper 
-                        isDarkMode={isDarkMode} 
-                        toggleDarkMode={toggleDarkMode} 
-                        userId={userId} 
-                        isEnvReady={authReady} 
-                        onSignOut={handleSignOut}
-                        userIsAnonymous={userIsAnonymous}
-                    >
-                        <LoginScreen 
-                            auth={auth} 
-                            onLoginSuccess={async () => { 
-                                // Attempt anonymous sign-in to proceed to planner view without credentials
-                                try {
-                                    await signInAnonymously(auth);
-                                } catch (e) {
-                                    // If anonymous fails, we just force the view to planner and hope the user can see data.
-                                    setView('planner'); 
-                                }
-                            }}
-                            isDarkMode={isDarkMode}
-                            authError={error}
-                        />
-                         <p className={`text-center mt-8 text-xs italic ${isDarkMode ? 'text-[#008800]' : 'text-gray-500'}`}>
-                             Email/Password sign-in enables persistent plan saving.
-                         </p>
-                    </TerminalWrapper>
-                );
-            }
-
-            // 3. Main Planner Screen
-            return (
-                <TerminalWrapper 
-                    isDarkMode={isDarkMode} 
-                    toggleDarkMode={toggleDarkMode} 
-                    userId={userId} 
-                    isEnvReady={authReady} 
-                    onSignOut={handleSignOut}
-                    userIsAnonymous={userIsAnonymous}
-                >
+<div class="mt-4 sm:mt-0 w-full sm:w-auto">
+                <label for="color-theme" class="sm:block mb-1 text-sm uppercase font-semibold text-right hidden">Color Theme:</label>
+                <select id="color-theme" class="w-full sm:w-40 p-2 border-2 rounded-none focus:ring-0">
                     
-                    {/* Input Section (Bot Command Line) */}
-                    <div className="w-full mb-6">
-                        <label htmlFor="programs" className={`block mb-2 text-sm uppercase ${terminalAccent}`}>
-                            ADVISOR BOT READY: AWAITING COMMAND.
-                        </label>
-                        <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-2">
-                            <input
-                                id="programs"
-                                type="text"
-                                value={programs}
-                                onChange={(e) => setPrograms(e.target.value)}
-                                disabled={loading || !authReady}
-                                className={`flex-grow p-2 border-2 focus:ring-0 focus:outline-none rounded-none font-mono
-                                    ${isDarkMode 
-                                        ? 'bg-[#111111] border-crt-green text-crt-green caret-crt-green placeholder-[#008800]' 
-                                        : 'bg-white border-gray-900 text-gray-900 placeholder-gray-500'
-                                    }
-                                `}
-                                placeholder="> Enter major(s) (e.g., Computer Science) and press RUN"
-                            />
-                            <TerminalButton onClick={fetchPlan} disabled={loading || !authReady} icon={SearchIcon} isDarkMode={isDarkMode}>
-                                {loading ? 'EXECUTING...' : 'RUN PLAN'}
-                            </TerminalButton>
-                        </div>
+</select>
+            </div>
+        </header>
+
+        <div class="text-base sm:text-lg">
+            
+            
+<div id="config-panel" class="w-full mb-8 p-4 border-2 border-dashed border-gray-700 rounded-none">
+                <label id="config-label" class="block mb-4 text-xl uppercase font-extrabold text-rpi-red">
+                    T.R.R.A.M. PLAN CONFIGURATION
+                </label>
+                
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    
+                    
+<div class="col-span-1 md:col-span-1">
+                        <label for="start-term" class="block mb-1 text-sm uppercase font-semibold">Start Term:</label>
+                        <select id="start-term" class="w-full p-2 border-2 rounded-none focus:ring-0 focus:border-rpi-red">
+                            
+</select>
                     </div>
 
-                    {/* Status and Error Messages */}
-                    {error && (
-                        <div className={`w-full p-3 mb-4 border-2 rounded-none flex items-center space-x-2 ${errorColor}`}>
-                            <XIcon className="w-5 h-5" />
-                            <span className="font-bold">SYSTEM ALERT:</span> <span>{error}</span>
-                        </div>
-                    )}
-
-                    {loading && (
-                        <div className={`w-full p-3 mb-4 text-center border-2 rounded-none flex items-center justify-center space-x-2 animate-pulse ${infoColor} ${isDarkMode ? 'text-crt-green' : 'text-green-800'}`}>
-                            <LoaderIcon className="w-5 h-5 animate-spin" />
-                            <span className="uppercase">Processing Request... Querying Academic Database...</span>
-                        </div>
-                    )}
                     
-                    {/* Plan Summary and Controls */}
-                    {plan && (
-                        <div className={`w-full mb-6 p-4 border-2 rounded-none ${isDarkMode ? 'border-crt-green bg-[#001a00]' : 'border-gray-900 bg-gray-50'}`}>
-                            <h2 className={`text-xl uppercase font-bold mb-3 border-b pb-1 ${isDarkMode ? 'border-[#004400]' : 'border-gray-300'}`}>
-                                T.R.R.A.M. OUTPUT: Program Plan for ({programs})
-                            </h2>
-                            <div className="flex justify-between text-sm mb-3">
-                                <p>
-                                    <span className={terminalAccent}>TOTAL CREDITS:</span> {totalCredits} / ~128
-                                </p>
-                                <p>
-                                    <span className={terminalAccent}>COMPLETED CREDITS:</span> {completedCredits}
-                                </p>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                                <TerminalButton 
-                                    onClick={() => savePlan(plan)} 
-                                    disabled={loading || !authReady || userIsAnonymous} 
-                                    icon={SaveIcon} 
-                                    isDarkMode={isDarkMode}
-                                    title={userIsAnonymous ? "Log in to save your plan persistently." : "Save current progress."}
-                                >
-                                    {userIsAnonymous ? 'Login to Save' : 'Save Progress'}
-                                </TerminalButton>
-                                <TerminalButton onClick={() => setPlan(null)} disabled={loading} icon={XIcon} className={isDarkMode ? 'bg-[#440000]' : 'bg-red-500'} isDarkMode={isDarkMode}>
-                                    Clear Plan
-                                </TerminalButton>
-                                <TerminalButton onClick={fetchPlan} disabled={loading || !authReady} icon={() => <span className="text-xl">↻</span>} isDarkMode={isDarkMode}>
-                                    Regenerate Plan
-                                </TerminalButton>
-                            </div>
-                            {userIsAnonymous && (
-                                <p className={`mt-3 text-xs italic ${isDarkMode ? 'text-crt-yellow' : 'text-red-600'}`}>
-                                    NOTE: You are currently signed in anonymously. Saving is disabled.
-                                </p>
-                            )}
-                        </div>
-                    )}
+<div class="col-span-1 md:col-span-1">
+                        <label for="arch-away" class="block mb-1 text-sm uppercase font-semibold">Arch Slot:</label>
+                        <select id="arch-away" class="w-full p-2 border-2 rounded-none focus:ring-0 focus:border-rpi-red">
+                            
+</select>
+                    </div>
 
-                    {/* Schedule Display Grid */}
-                    {plan ? (
-                        <div className="w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-                            {plan.map((semester, index) => (
-                                <div
-                                    key={index}
-                                    className={`border-2 p-3 rounded-none 
-                                        ${semester.semester.includes('Away')
-                                            ? `${isDarkMode ? 'border-dashed border-crt-yellow bg-[#1a001a]' : 'border-dashed border-yellow-600 bg-yellow-50'}`
-                                            : `${isDarkMode ? 'border-crt-green bg-[#001a00]' : 'border-gray-900 bg-white'}`
-                                        }`
-                                    }
-                                >
-                                    <h3 className={`text-lg font-bold mb-2 uppercase text-center border-b pb-1 
-                                        ${isDarkMode ? 'border-crt-green' : 'border-gray-700'}`
-                                    }>
-                                        {semester.semester} (Year {semester.year})
-                                    </h3>
-                                    
-                                    {semester.courses.length === 0 ? (
-                                        <p className={`italic text-center py-4 ${terminalAccent}`}>
-                                            {semester.semester.includes('Away') ? 'ARCH AWAY SEMESTER' : 'FREE TERM'}
-                                        </p>
-                                    ) : (
-                                        <>
-                                            {semester.courses.map((course, courseIndex) => (
-                                                <CourseItem 
-                                                    key={courseIndex} 
-                                                    course={{...course, semester: semester.semester}} 
-                                                    onToggle={toggleCourseCompletion} 
-                                                    isDarkMode={isDarkMode}
-                                                />
-                                            ))}
-                                            <div className={`text-sm mt-2 pt-2 border-t text-right 
-                                                ${isDarkMode ? 'border-[#004400]' : 'border-gray-300 text-gray-600'}`}>
-                                                Total: {semester.courses.reduce((sum, c) => sum + c.credits, 0)} Credits
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className={`w-full text-center p-12 border-2 border-dashed rounded-none mt-10 
-                            ${isDarkMode ? 'border-crt-green text-crt-green' : 'border-gray-500 text-gray-600'}`}>
-                            <BotIcon className={`w-10 h-10 mx-auto mb-4 animate-pulse ${terminalAccent}`} />
-                            <p className="text-lg uppercase">INITIALIZED. T.R.R.A.M. AWAITS COMMANDS.</p>
-                            <p className="text-sm mt-2">Enter your program(s) above and click 'Run Plan' to start course generation.</p>
-                            <p className="text-sm mt-4 italic">
-                                Data will save automatically if you are logged in with an email/password account.
-                            </p>
-                        </div>
-                    )}
-                </TerminalWrapper>
-            );
+                    <button id="recalculate-button" class="col-span-1 md:col-span-2 px-3 py-2 border-2 font-bold uppercase transition duration-150 rounded-none mt-auto text-xl h-full text-white bg-rpi-red border-rpi-red shadow-button hover:opacity-90">
+                        <span class="text-sm sm:text-base">UPDATE PLAN</span>
+                    </button>
+                </div>
+            </div>
+
+            
+<div id="status-panel" class="w-full p-3 mb-6 border-2 rounded-none border-green-600 bg-green-100 text-green-800">
+                
+</div>
+
+            
+<h2 id="schedule-title" class="text-2xl uppercase font-bold mb-4 border-b pb-1 border-rpi-red text-rpi-red">
+                ACADEMIC CHRONOLOGY (<span id="start-term-display">Fall 2024</span> START)
+            </h2>
+            
+            <div id="schedule-grid" class="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+                
+</div>
+
+        </div>
+    </div>
+
+    <script type="module">
+        // --- Firebase Imports (Required for Auth/User ID) ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // Set Firebase log level for debugging
+        setLogLevel('error');
+
+        // --- GLOBAL CONSTANTS ---
+        const CREDIT_PER_COURSE = 4;
+        
+        const ALL_ACADEMIC_SEMESTERS = [
+            { id: 'F1', academicYear: 1, term: 'Fall', courses: [{ code: 'CSCI 1100', name: 'Comp. Sci. I' }, { code: 'MATH 1010', name: 'Calculus I' }, { code: 'PHYS 1000', name: 'Physics I' }, { code: 'HASS XXXX', name: 'HASS Inquiry' }] },
+            { id: 'S1', academicYear: 1, term: 'Spring', courses: [{ code: 'CSCI 1200', name: 'Data Struct.' }, { code: 'MATH 1020', name: 'Calculus II' }, { code: 'CSCI 2200', name: 'Found. CS' }, { code: 'HASS XXXX', name: 'Comm. Intensive' }] },
+            { id: 'F2', academicYear: 2, term: 'Fall', courses: [{ code: 'CSCI 2500', name: 'Comp. Org.' }, { code: 'CSCI 4020', name: 'Algorithms' }, { code: 'MATH 2400', name: 'Diff. Eq.' }, { code: 'Free Elective', name: 'Elective I' }] },
+            { id: 'S2', academicYear: 2, term: 'Spring', courses: [{ code: 'CSCI 4210', name: 'Operating Systems' }, { code: 'MATH 4800', name: 'Prob/Stats' }, { code: 'Minor XXXX', name: 'Minor/Pathway I' }, { code: 'HASS XXXX', name: 'HASS Slot' }] },
+            { id: 'F3', academicYear: 3, term: 'Fall', courses: [{ code: 'CSCI 4050', name: 'Theory of Comp.' }, { code: 'CSCI 4440', name: 'Software Eng.' }, { code: 'HASS 4000', name: '4000-Level HASS' }, { code: 'CSCI XXXX', name: 'CS Elective' }] },
+            { id: 'S3', academicYear: 3, term: 'Spring', courses: [{ code: 'CSCI 4050', name: 'Theory of Comp.' }, { code: 'CSCI 4440', name: 'Software Eng.' }, { code: 'HASS 4000', name: '4000-Level HASS' }, { code: 'CSCI XXXX', name: 'CS Elective' }] },
+            { id: 'F4', academicYear: 4, term: 'Fall', courses: [{ code: 'CSCI 4980', name: 'Capstone I' }, { code: 'CSCI XXXX', name: 'Adv. CS Elective' }, { code: 'Free Elective', name: 'Elective III' }, { code: 'Minor XXXX', name: 'Minor/Pathway II' }] },
+            { id: 'S4', academicYear: 4, term: 'Spring', courses: [{ code: 'CSCI 4990', name: 'Capstone II' }, { code: 'CSCI XXXX', name: 'Adv. CS Elective' }, { code: 'Free Elective', name: 'Elective IV' }, { code: 'Minor XXXX', name: 'Minor/Pathway III' }] },
+        ];
+        
+        const ARCH_EXPERIENCE = {
+            id: 'Arch',
+            term: 'Arch Experience',
+            courses: [{ code: 'Experiential', name: 'Arch Away Semester' }],
+            credits: 0,
+            type: 'away',
+            academicYear: null,
+        };
+        
+        const ARCH_SEMESTER_OPTIONS = [
+            { value: 'F3', label: 'F3 - Junior Fall' },
+            { value: 'S3', label: 'S3 - Junior Spring' },
+            { value: 'F4', label: 'F4 - Senior Fall' },
+        ];
+        
+        const START_TERM_OPTIONS = [
+            { value: 'Fall 2024', label: 'Fall 2024' },
+            { value: 'Spring 2025', label: 'Spring 2025' },
+            { value: 'Fall 2025', label: 'Fall 2025' },
+        ];
+
+        // --- THEME DEFINITIONS ---
+        // Note: Colors are slightly brighter/more saturated to enhance the retro glow effect.
+        const THEMES = {
+            'light-classic': {
+                bodyBg: 'bg-gray-100', bodyText: 'text-gray-900',
+                containerBg: 'bg-white', containerBorder: 'border-gray-900',
+                headerText: 'text-gray-900', headerAccent: 'text-indigo-600', headerBorder: 'border-gray-900',
+                buttonBg: 'bg-indigo-500', buttonText: 'text-white', buttonBorder: 'border-gray-900',
+                configBorder: 'border-gray-700', configLabel: 'text-indigo-600',
+                cardBg: 'bg-white', cardBorder: 'border-gray-900', cardHeaderText: 'text-indigo-600',
+                archBg: 'bg-yellow-100', archBorder: 'border-yellow-600', archText: 'text-yellow-700',
+                displacedBg: 'bg-gray-100', displacedBorder: 'border-gray-400', displacedText: 'text-gray-600',
+                selectBg: 'bg-white', selectText: 'text-gray-900', selectBorder: 'border-gray-400',
+                glowColor: 'rgba(99, 102, 241, 0.7)', // indigo-500 semi-transparent for glow
+            },
+            'dark-terminal': {
+                bodyBg: 'bg-gray-950', bodyText: 'text-green-400', 
+                containerBg: 'bg-gray-900', containerBorder: 'border-green-400',
+                headerText: 'text-green-400', headerAccent: 'text-cyan-400', headerBorder: 'border-green-400',
+                buttonBg: 'bg-cyan-600', buttonText: 'text-gray-950', buttonBorder: 'border-cyan-400',
+                configBorder: 'border-green-400', configLabel: 'text-green-400',
+                cardBg: 'bg-gray-900', cardBorder: 'border-green-400', cardHeaderText: 'text-cyan-400',
+                archBg: 'bg-gray-800', archBorder: 'border-yellow-500', archText: 'text-yellow-400',
+                displacedBg: 'bg-gray-800', displacedBorder: 'border-gray-600', displacedText: 'text-gray-400',
+                selectBg: 'bg-gray-800', selectText: 'text-green-400', selectBorder: 'border-green-400',
+                glowColor: 'rgba(0, 255, 0, 0.7)', // green-400 semi-transparent for glow
+            },
+            'rpi-red-black': {
+                bodyBg: 'bg-gray-950', bodyText: 'text-rpi-light-gray',
+                containerBg: 'bg-rpi-dark', containerBorder: 'border-rpi-red',
+                headerText: 'text-rpi-light-gray', headerAccent: 'text-rpi-red', headerBorder: 'border-rpi-red',
+                buttonBg: 'bg-rpi-red', buttonText: 'text-rpi-light-gray', buttonBorder: 'border-rpi-red',
+                configBorder: 'border-rpi-red', configLabel: 'text-rpi-red',
+                cardBg: 'bg-gray-800', cardBorder: 'border-rpi-red', cardHeaderText: 'text-rpi-red',
+                archBg: 'bg-gray-700', archBorder: 'border-rpi-gold', archText: 'text-rpi-gold',
+                displacedBg: 'bg-gray-700', displacedBorder: 'border-gray-600', displacedText: 'text-gray-400',
+                selectBg: 'bg-gray-700', selectText: 'text-rpi-light-gray', selectBorder: 'border-gray-600',
+                glowColor: 'rgba(255, 68, 85, 0.7)', // rpi-red semi-transparent for glow
+            },
+            'pastel-dream': {
+                bodyBg: 'bg-blue-50', bodyText: 'text-gray-800',
+                containerBg: 'bg-white', containerBorder: 'border-pink-400',
+                headerText: 'text-blue-600', headerAccent: 'text-pink-500', headerBorder: 'border-pink-400',
+                buttonBg: 'bg-blue-400', buttonText: 'text-white', buttonBorder: 'border-pink-500',
+                configBorder: 'border-pink-400', configLabel: 'text-blue-600',
+                cardBg: 'bg-white', cardBorder: 'border-pink-400', cardHeaderText: 'text-blue-500',
+                archBg: 'bg-pink-100', archBorder: 'border-pink-500', archText: 'text-pink-600',
+                displacedBg: 'bg-blue-100', displacedBorder: 'border-blue-300', displacedText: 'text-gray-500',
+                selectBg: 'bg-white', selectText: 'text-gray-800', selectBorder: 'border-pink-400',
+                glowColor: 'rgba(236, 72, 153, 0.7)', // pink-500 semi-transparent for glow
+            },
+            'sunset-warmth': {
+                bodyBg: 'bg-orange-50', bodyText: 'text-stone-800',
+                containerBg: 'bg-white', containerBorder: 'border-orange-600',
+                headerText: 'text-orange-700', headerAccent: 'text-red-500', headerBorder: 'border-orange-600',
+                buttonBg: 'bg-red-600', buttonText: 'text-white', buttonBorder: 'border-red-600',
+                configBorder: 'border-orange-600', configLabel: 'text-orange-700',
+                cardBg: 'bg-white', cardBorder: 'border-orange-600', cardHeaderText: 'text-red-500',
+                archBg: 'bg-amber-100', archBorder: 'border-amber-500', archText: 'text-amber-700',
+                displacedBg: 'bg-orange-100', displacedBorder: 'border-orange-300', displacedText: 'text-stone-600',
+                selectBg: 'bg-white', selectText: 'text-stone-800', selectBorder: 'border-orange-600',
+                glowColor: 'rgba(239, 68, 68, 0.7)', // red-500 semi-transparent for glow
+            },
+            'ocean-breeze': {
+                bodyBg: 'bg-blue-100', bodyText: 'text-gray-800',
+                containerBg: 'bg-white', containerBorder: 'border-teal-600',
+                headerText: 'text-teal-700', headerAccent: 'text-cyan-500', headerBorder: 'border-teal-600',
+                buttonBg: 'bg-teal-600', buttonText: 'text-white', buttonBorder: 'border-cyan-500',
+                configBorder: 'border-teal-600', configLabel: 'text-teal-700',
+                cardBg: 'bg-white', cardBorder: 'border-teal-600', cardHeaderText: 'text-cyan-500',
+                archBg: 'bg-cyan-100', archBorder: 'border-cyan-500', archText: 'text-cyan-700',
+                displacedBg: 'bg-blue-200', displacedBorder: 'border-blue-400', displacedText: 'text-gray-700',
+                selectBg: 'bg-white', selectText: 'text-gray-800', selectBorder: 'border-teal-600',
+                glowColor: 'rgba(6, 182, 212, 0.7)', // cyan-500 semi-transparent for glow
+            },
+            'high-contrast': {
+                bodyBg: 'bg-black', bodyText: 'text-lime-400',
+                containerBg: 'bg-gray-900', containerBorder: 'border-lime-400',
+                headerText: 'text-lime-400', headerAccent: 'text-fuchsia-400', headerBorder: 'border-lime-400',
+                buttonBg: 'bg-fuchsia-600', buttonText: 'text-black', buttonBorder: 'border-fuchsia-400',
+                configBorder: 'border-lime-400', configLabel: 'text-lime-400',
+                cardBg: 'bg-gray-800', cardBorder: 'border-lime-400', cardHeaderText: 'text-fuchsia-400',
+                archBg: 'bg-fuchsia-900', archBorder: 'border-fuchsia-400', archText: 'text-fuchsia-400',
+                displacedBg: 'bg-gray-700', displacedBorder: 'border-lime-400', displacedText: 'text-gray-200',
+                selectBg: 'bg-gray-800', selectText: 'text-lime-400', selectBorder: 'border-lime-400',
+                glowColor: 'rgba(163, 230, 53, 0.7)', // lime-400 semi-transparent for glow
+            },
+            'forest-retreat': {
+                bodyBg: 'bg-green-100', bodyText: 'text-gray-800',
+                containerBg: 'bg-white', containerBorder: 'border-green-800',
+                headerText: 'text-green-800', headerAccent: 'text-yellow-700', headerBorder: 'border-green-800',
+                buttonBg: 'bg-green-700', buttonText: 'text-white', buttonBorder: 'border-yellow-700',
+                configBorder: 'border-green-800', configLabel: 'text-green-800',
+                cardBg: 'bg-white', cardBorder: 'border-green-800', cardHeaderText: 'text-yellow-700',
+                archBg: 'bg-yellow-100', archBorder: 'border-yellow-700', archText: 'text-yellow-800',
+                displacedBg: 'bg-green-200', displacedBorder: 'border-green-500', displacedText: 'text-gray-600',
+                selectBg: 'bg-white', selectText: 'text-gray-800', selectBorder: 'border-green-800',
+                glowColor: 'rgba(21, 128, 61, 0.7)', // green-700 semi-transparent for glow
+            }
         };
 
-        // Render the main component
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        const THEME_OPTIONS = [
+            { value: 'rpi-red-black', label: 'RPI Red & Black (Bold)' },
+            { value: 'dark-terminal', label: 'Dark Terminal (Green)' },
+            { value: 'light-classic', label: 'Light Classic' },
+            { value: 'pastel-dream', label: 'Pastel Dream (Soft)' },
+            { value: 'sunset-warmth', label: 'Sunset Warmth (Warm)' },
+            { value: 'ocean-breeze', label: 'Ocean Breeze (Cool)' },
+            { value: 'high-contrast', label: 'High Contrast (Bold)' },
+            { value: 'forest-retreat', label: 'Forest Retreat (Earthy)' },
+        ];
+
+
+        // --- FIREBASE SETUP ---
+        let auth, db, userId;
+
+        const setupFirebase = async () => {
+            try {
+                const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, (user) => {
+                    userId = user ? user.uid : crypto.randomUUID();
+                    // Show a truncated user ID
+                    document.getElementById('user-id-display').textContent = `ACADEMIC PLAN GENERATOR (USER ID: ${userId.substring(0, 8)}...)`;
+                    renderSchedule();
+                });
+            } catch (error) {
+                console.error("Firebase setup failed, continuing anonymously:", error);
+                userId = crypto.randomUUID();
+                document.getElementById('user-id-display').textContent = `ACADEMIC PLAN GENERATOR (USER ID: ${userId.substring(0, 8)}...)`;
+                renderSchedule();
+            }
+        };
+
+        // --- SCHEDULING LOGIC (Unchanged) ---
+
+        const generateChronology = (startTerm, archAwayId) => {
+            const [startSemester, startYearStr] = startTerm.split(' ');
+            let currentYear = parseInt(startYearStr, 10);
+            let currentTerm = startSemester;
+
+            const archAwayIndex = ALL_ACADEMIC_SEMESTERS.findIndex(s => s.id === archAwayId);
+            
+            const displacedSemester = ALL_ACADEMIC_SEMESTERS[archAwayIndex];
+            const rpiSlotsToUse = ALL_ACADEMIC_SEMESTERS.filter(s => s.id !== archAwayId);
+            
+            let finalChronology = [];
+            let rpiSlotCounter = 0;
+
+            for (let i = 0; i < 9; i++) {
+                
+                const chronologicalName = `${currentTerm} ${currentYear}`;
+                let slotContent;
+                let isArchAway = false;
+                
+                if (i === archAwayIndex) {
+                    slotContent = ARCH_EXPERIENCE;
+                    isArchAway = true;
+                } 
+                else if (i === 8) {
+                    slotContent = displacedSemester;
+                } 
+                else {
+                    slotContent = rpiSlotsToUse[rpiSlotCounter];
+                    rpiSlotCounter++;
+                }
+
+                const displayCourses = slotContent.courses;
+                const credits = isArchAway ? 0 : displayCourses.length * CREDIT_PER_COURSE;
+                
+                let displayYear;
+                if (isArchAway) {
+                    displayYear = 'ARCH';
+                } else if (i === 8) {
+                    displayYear = '5TH YEAR';
+                } else {
+                    displayYear = `Y${slotContent.academicYear}`;
+                }
+
+
+                finalChronology.push({
+                    ...slotContent,
+                    chronologicalName,
+                    calendarYear: currentYear,
+                    semester: currentTerm,
+                    credits,
+                    isArchAway,
+                    displayYear
+                });
+
+                if (currentTerm === 'Fall') {
+                    currentTerm = 'Spring';
+                    currentYear += 1;
+                } else { // 'Spring'
+                    currentTerm = 'Fall';
+                }
+            }
+
+            return finalChronology;
+        };
+
+        // --- RENDERING FUNCTIONS ---
+
+        const applyTheme = (themeName) => {
+            const theme = THEMES[themeName] || THEMES['rpi-red-black'];
+            const container = document.getElementById('app-container');
+            const header = container.querySelector('header');
+            const headerH1 = header.querySelector('h1');
+            const headerIcon = document.getElementById('header-icon');
+            const userIdDisplay = document.getElementById('user-id-display');
+            const configPanel = document.getElementById('config-panel');
+            const configLabel = document.getElementById('config-label');
+            const scheduleTitle = document.getElementById('schedule-title');
+            const button = document.getElementById('recalculate-button');
+            const selects = container.querySelectorAll('select');
+            const statusPanel = document.getElementById('status-panel');
+            
+            // 1. Apply root body/text classes
+            document.body.className = `min-h-screen p-4 sm:p-8 flex justify-center ${theme.bodyBg} ${theme.bodyText}`;
+            
+            // Set the theme class on HTML for scrollbar customization
+            document.documentElement.className = `theme-${themeName}`;
+
+            // 2. Apply container classes (note: rounded-none is set in HTML to keep retro look)
+            container.className = `w-full max-w-6xl p-4 sm:p-6 md:p-8 relative z-10 
+                border-4 shadow-xl rounded-none transition-colors duration-500 border-glow
+                ${theme.containerBorder} ${theme.containerBg}`;
+            // Set glow color for the main container border
+            container.style.boxShadow = `0 0 8px 2px ${theme.glowColor}, inset 0 0 8px 2px ${theme.glowColor}`;
+            container.style.borderColor = theme.containerBorder.split('-').pop(); // Ensure actual border color matches
+            
+            // 3. Apply header classes and theme colors
+            header.className = `mb-6 border-b-4 pb-3 flex flex-col sm:flex-row justify-between items-start sm:items-end border-glow ${theme.headerBorder}`;
+            header.style.boxShadow = `0 0 5px 1px ${theme.glowColor}, inset 0 0 5px 1px ${theme.glowColor}`; // Subtle glow on header border
+            header.style.borderColor = theme.headerBorder.split('-').pop();
+
+            headerH1.className = `text-3xl sm:text-4xl font-bold uppercase flex items-center ${theme.headerText}`;
+            
+            // Apply theme color to the new tram icon
+            headerIcon.setAttribute('class', `w-8 h-8 mr-2 mb-1 ${theme.headerAccent}`); 
+            userIdDisplay.className = `text-base ml-8 italic ${theme.displacedText}`; 
+            
+            // 4. Apply config panel classes and theme colors
+            configPanel.className = `w-full mb-8 p-4 border-2 border-dashed rounded-none border-glow ${theme.configBorder}`;
+            configPanel.style.boxShadow = `0 0 5px 1px ${theme.glowColor}, inset 0 0 5px 1px ${theme.glowColor}`;
+            configPanel.style.borderColor = theme.configBorder.split('-').pop();
+
+            configLabel.className = `block mb-4 text-xl uppercase font-extrabold ${theme.configLabel}`;
+
+            // 5. Apply button classes (shadow-button custom styles remain)
+            button.className = `col-span-1 md:col-span-2 px-3 py-2 border-2 font-bold uppercase transition duration-150 rounded-none mt-auto text-xl h-full ${theme.buttonText} ${theme.buttonBg} ${theme.buttonBorder} shadow-button hover:opacity-90 border-glow`;
+            // Button shadow to match glow
+            button.style.boxShadow = `4px 4px 0 ${theme.buttonText.split('-').pop() !== 'white' ? theme.buttonText.split('-').pop() : theme.buttonText.split('-').pop()}, 0 0 8px 2px ${theme.glowColor}`;
+            button.style.borderColor = theme.buttonBorder.split('-').pop();
+            // Additionally, apply a border-glow to the button itself
+            button.style.setProperty('box-shadow', `4px 4px 0 ${theme.buttonText.split('-').pop() !== 'white' ? theme.buttonText.split('-').pop() : theme.buttonText.split('-').pop()}, 0 0 8px 2px ${theme.glowColor}`);
+
+
+            // 6. Apply schedule title classes and theme colors
+            scheduleTitle.className = `text-2xl uppercase font-bold mb-4 border-b pb-1 border-glow ${theme.headerBorder} ${theme.headerText}`;
+            scheduleTitle.style.boxShadow = `0 0 5px 1px ${theme.glowColor}, inset 0 0 5px 1px ${theme.glowColor}`;
+            scheduleTitle.style.borderColor = theme.headerBorder.split('-').pop();
+
+
+            // 7. Apply selector classes 
+            selects.forEach(s => {
+                s.className = `w-full p-2 border-2 rounded-none focus:ring-0 ${theme.headerAccent.replace('text', 'focus:border')} ${theme.selectBg} ${theme.selectText} ${theme.selectBorder} border-glow`;
+                s.style.boxShadow = `0 0 3px 1px ${theme.glowColor}, inset 0 0 3px 1px ${theme.glowColor}`;
+                s.style.borderColor = theme.selectBorder.split('-').pop();
+            });
+
+            // 8. Apply status panel classes
+            statusPanel.className = `w-full p-3 mb-6 border-2 rounded-none border-glow ${theme.configBorder} ${theme.configLabel.replace('text', 'bg').replace('rpi-red', 'green-900')} ${theme.configLabel.replace('rpi-red', 'green-400')}`;
+            statusPanel.style.boxShadow = `0 0 5px 1px ${theme.glowColor}, inset 0 0 5px 1px ${theme.glowColor}`;
+            statusPanel.style.borderColor = theme.configBorder.split('-').pop();
+
+
+            // 9. Re-render cards to apply their unique theme classes
+            renderSchedule();
+        };
+
+        const renderCourseList = (courses, isArchAway, theme) => {
+            let html = '';
+            const dividerClass = theme.displacedBorder.replace('border', 'border-t');
+
+            courses.forEach((course) => {
+                const opacity = isArchAway ? 'opacity-90' : '';
+                
+                html += `
+                    <div class="p-1.5 flex justify-between items-center border-b ${dividerClass} ${opacity}">
+                        <span class="font-bold">${course.code}</span>
+                        <span class="text-sm">${course.name}</span>
+                        <span class="text-right font-bold text-base ${isArchAway ? theme.archText : theme.bodyText}">
+                            ${isArchAway ? 'N/A' : `${CREDIT_PER_COURSE} CR.`}
+                        </span>
+                    </div>
+                `;
+            });
+
+            if (isArchAway) {
+                html += `
+                    <p class="italic text-center py-6 ${theme.archText} text-sm">
+                        THIS SEMESTER IS RESERVED FOR YOUR ARCH AWAY EXPERIENCE. NO RPI CREDITS ARE EARNED.
+                    </p>
+                `;
+            }
+
+            return html;
+        };
+
+        const renderSemesterCard = (slot) => {
+            const currentTheme = THEMES[document.getElementById('color-theme').value] || THEMES['rpi-red-black'];
+            const isArchAway = slot.isArchAway;
+            const isDisplaced = slot.displayYear === '5TH YEAR';
+
+            let cardClasses, headerClasses, footerClasses;
+
+            // Base classes that all cards share for retro feel
+            const baseCardClasses = 'border-2 p-3 rounded-none shadow-lg border-glow';
+            const baseHeaderTextClasses = 'text-xl font-bold mb-2 uppercase text-center border-b pb-1 border-glow';
+            const baseFooterTextClasses = 'text-base mt-2 pt-2 border-t text-right font-bold border-glow';
+
+            if (isArchAway) {
+                // Arch Away uses Gold/Yellow/Highlight accent
+                cardClasses = `${baseCardClasses} border-dashed ${currentTheme.archBorder} ${currentTheme.archBg}`;
+                headerClasses = `${baseHeaderTextClasses} ${currentTheme.archBorder} ${currentTheme.archText}`;
+                footerClasses = `${baseFooterTextClasses} ${currentTheme.archBorder} ${currentTheme.archText}`;
+            } else if (isDisplaced) {
+                // 5th Year uses Muted/Displaced accent
+                cardClasses = `${baseCardClasses} ${currentTheme.displacedBorder} ${currentTheme.displacedBg}`;
+                headerClasses = `${baseHeaderTextClasses} ${currentTheme.displacedBorder} ${currentTheme.headerAccent}`;
+                footerClasses = `${baseFooterTextClasses} ${currentTheme.displacedBorder} ${currentTheme.displacedText}`;
+            } else {
+                // Standard RPI slots use Primary accent
+                cardClasses = `${baseCardClasses} ${currentTheme.cardBorder} ${currentTheme.cardBg}`;
+                headerClasses = `${baseHeaderTextClasses} ${currentTheme.cardBorder} ${currentTheme.cardHeaderText}`;
+                footerClasses = `${baseFooterTextClasses} ${currentTheme.cardBorder} ${currentTheme.displacedText}`;
+            }
+
+            return `
+                <div class="${cardClasses}" style="box-shadow: 0 0 8px 2px ${currentTheme.glowColor}, inset 0 0 8px 2px ${currentTheme.glowColor}; border-color: ${currentTheme.glowColor.split(',')[0].replace('rgba(', '').trim()};">
+                    <h3 class="${headerClasses}" style="box-shadow: 0 0 5px 1px ${currentTheme.glowColor}, inset 0 0 5px 1px ${currentTheme.glowColor}; border-color: ${currentTheme.glowColor.split(',')[0].replace('rgba(', '').trim()};">
+                        ${slot.id} - ${slot.chronologicalName} 
+                        <span class="text-sm font-normal">
+                            (${slot.displayYear})
+                        </span>
+                    </h3>
+                    ${renderCourseList(slot.courses, isArchAway, currentTheme)}
+                    <div class="${footerClasses}" style="box-shadow: 0 0 5px 1px ${currentTheme.glowColor}, inset 0 0 5px 1px ${currentTheme.glowColor}; border-color: ${currentTheme.glowColor.split(',')[0].replace('rgba(', '').trim()};">
+                        TOTAL: ${slot.credits} CREDITS
+                    </div>
+                </div>
+            `;
+        };
+
+        const renderSchedule = () => {
+            const startTerm = document.getElementById('start-term').value;
+            const archAwayId = document.getElementById('arch-away').value;
+            
+            const schedule = generateChronology(startTerm, archAwayId);
+            const totalCredits = schedule.reduce((acc, slot) => acc + slot.credits, 0);
+
+            const grid = document.getElementById('schedule-grid');
+            grid.innerHTML = schedule.map(renderSemesterCard).join('');
+
+            document.getElementById('start-term-display').textContent = startTerm;
+
+            // Update Status Panel
+            const statusPanel = document.getElementById('status-panel');
+            statusPanel.innerHTML = `<span class="font-bold">SYSTEM STATUS:</span> SHOWING **COMPUTER SCIENCE** PLACEHOLDER PLAN. TOTAL PLANNED CREDITS: **${totalCredits}**.`;
+            
+        };
+
+        // --- INITIALIZATION ---
+
+        const init = () => {
+            const themeSelect = document.getElementById('color-theme');
+            const startTermSelect = document.getElementById('start-term');
+            const archAwaySelect = document.getElementById('arch-away');
+
+            // Populate selectors
+            THEME_OPTIONS.forEach(opt => {
+                themeSelect.innerHTML += `<option value="${opt.value}">${opt.label}</option>`;
+            });
+            START_TERM_OPTIONS.forEach(opt => {
+                startTermSelect.innerHTML += `<option value="${opt.value}">${opt.label}</option>`;
+            });
+            ARCH_SEMESTER_OPTIONS.forEach(opt => {
+                archAwaySelect.innerHTML += `<option value="${opt.value}">${opt.label}</option>`;
+            });
+            
+            // Set initial theme based on preference/default
+            let initialTheme = localStorage.getItem('trram-theme') || 'dark-terminal'; // Default to a strong retro theme
+            themeSelect.value = initialTheme;
+            
+            // Event Listeners
+            // Listener for all three config selectors
+            const elementsToListen = [themeSelect, startTermSelect, archAwaySelect];
+            elementsToListen.forEach(el => el.addEventListener('change', () => {
+                if (el.id === 'color-theme') {
+                    localStorage.setItem('trram-theme', themeSelect.value);
+                    applyTheme(themeSelect.value);
+                } else {
+                    renderSchedule();
+                }
+            }));
+            
+            // Recalculate button listener
+            document.getElementById('recalculate-button').addEventListener('click', () => {
+                applyTheme(themeSelect.value); // Forces theme update and re-render
+            });
+            
+            // Initial render
+            applyTheme(initialTheme);
+
+            // Start Firebase setup
+            setupFirebase();
+        };
+
+        window.onload = init;
     </script>
 </body>
 </html>

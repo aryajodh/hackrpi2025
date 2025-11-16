@@ -1,0 +1,9 @@
+POST http://localhost:3001/api/plan/generate
+Content-Type: application/json
+
+{
+   "major": "Computer Science",
+   "minor": "Data Science",
+   "concentration": "Software Engineering",
+   "start_year": 2025
+}
